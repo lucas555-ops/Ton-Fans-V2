@@ -17,17 +17,20 @@
     body{font-family:'Inter',sans-serif;}
     .glass{backdrop-filter:saturate(180%) blur(10px); background:rgba(255,255,255,.06);}
     .grid-auto{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}
-    .btn-ton{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.75rem 1rem;border-radius:.75rem;font-weight:600;color:#0B0B0B;box-shadow:0 0 0 rgba(0,193,255,0);transition:box-shadow .25s ease, transform .15s ease}
-    .btn-ton::before{content:"";position:absolute;inset:0;border-radius:inherit;background:
+    .btn-ton{position:relative;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.75rem 1rem;border-radius:.75rem;font-weight:600;color:#0B0B0B;box-shadow:0 0 0 rgba(0,193,255,0);transition:box-shadow .25s ease, transform .15s ease}
+    .btn-ton::before{content:"";position:absolute;inset:0;border-radius:inherit;z-index:-1;background:
       radial-gradient(120% 140% at 30% 30%, rgba(0,193,255,.35) 0%, rgba(0,152,234,.25) 35%, rgba(0,152,234,.15) 60%, rgba(0,152,234,0) 70%),
       linear-gradient(180deg,var(--ton),var(--ton2));}
     .btn-ton > *{position:relative;z-index:1}
     .btn-ton:hover{box-shadow:0 0 24px rgba(0,193,255,.45);transform:translateY(-1px)}
+    .btn-ton:focus{outline:none;box-shadow:0 0 0 3px rgba(0,152,234,.6),0 0 16px rgba(0,193,255,.6)}
     .btn-outline{border:1px solid rgba(255,255,255,.15);border-radius:.75rem;padding:.75rem 1rem}
     .btn-outline:hover{border-color:rgba(255,255,255,.3)}
     .card{transition:box-shadow .3s ease, transform .3s ease}
     .card:hover{box-shadow:0 0 20px rgba(0,152,234,.4);transform:translateY(-2px)}
     .card-diamond{box-shadow:0 0 20px rgba(0,193,255,.5),0 0 40px rgba(0,152,234,.3);border-color:var(--ton)}
+    /* Hero image glow */
+    .hero-img{box-shadow:0 0 32px rgba(0,152,234,.4),0 0 64px rgba(0,193,255,.25)}
   </style>
 </head>
 <body class="bg-[var(--bg)] text-zinc-100">
@@ -62,7 +65,7 @@
         </div>
       </div>
       <div class="relative">
-        <img src="https://raw.githubusercontent.com/<your>/<repo>/main/static/hero.png" alt="TON Fans V2" class="rounded-2xl shadow-2xl ring-1 ring-white/10"/>
+        <img src="https://raw.githubusercontent.com/<your>/<repo>/main/static/hero.png" alt="TON Fans V2" class="rounded-2xl ring-1 ring-white/10 hero-img"/>
       </div>
     </div>
   </section>
