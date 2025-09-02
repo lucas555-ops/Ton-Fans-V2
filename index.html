@@ -9,42 +9,56 @@
   <meta property="og:description" content="OG reboot with 4 coin types and ultra‑rare Diamonds. WL via CryptoBot." />
   <meta property="og:image" content="https://raw.githubusercontent.com/<your>/<repo>/main/static/og.png" />
   <meta property="og:type" content="website" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E💎%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="https://ton.org/download/brand-assets/ton_symbol.svg">
   <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
+    :root{--ton:#0098EA;--ton2:#00C1FF;--bg:#0B1220}
+    body{font-family:'Inter',sans-serif;}
     .glass{backdrop-filter:saturate(180%) blur(10px); background:rgba(255,255,255,.06);}
     .grid-auto{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}
+    .btn-ton{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.75rem 1rem;border-radius:.75rem;font-weight:600;color:#0B0B0B;box-shadow:0 0 0 rgba(0,193,255,0);transition:box-shadow .25s ease, transform .15s ease}
+    .btn-ton::before{content:"";position:absolute;inset:0;border-radius:inherit;background:
+      radial-gradient(120% 140% at 30% 30%, rgba(0,193,255,.35) 0%, rgba(0,152,234,.25) 35%, rgba(0,152,234,.15) 60%, rgba(0,152,234,0) 70%),
+      linear-gradient(180deg,var(--ton),var(--ton2));}
+    .btn-ton > *{position:relative;z-index:1}
+    .btn-ton:hover{box-shadow:0 0 24px rgba(0,193,255,.45);transform:translateY(-1px)}
+    .btn-outline{border:1px solid rgba(255,255,255,.15);border-radius:.75rem;padding:.75rem 1rem}
+    .btn-outline:hover{border-color:rgba(255,255,255,.3)}
+    .card{transition:box-shadow .3s ease, transform .3s ease}
+    .card:hover{box-shadow:0 0 20px rgba(0,152,234,.4);transform:translateY(-2px)}
+    .card-diamond{box-shadow:0 0 20px rgba(0,193,255,.5),0 0 40px rgba(0,152,234,.3);border-color:var(--ton)}
   </style>
 </head>
-<body class="bg-zinc-950 text-zinc-100">
+<body class="bg-[var(--bg)] text-zinc-100">
   <!-- NAV -->
   <header class="sticky top-0 z-40 glass border-b border-white/10">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-emerald-500/20 grid place-items-center">💎</div>
+        <div class="w-9 h-9 rounded-xl bg-[#0098EA]/20 grid place-items-center"><img src="https://ton.org/download/brand-assets/ton_symbol.svg" alt="TON" class="w-5 h-5"/></div>
         <span class="font-semibold tracking-wide">TON Fans V2 — Genesis Reboot</span>
       </div>
       <nav class="hidden sm:flex items-center gap-4 text-sm">
-        <a href="#tiers" class="hover:text-emerald-400">WL Tiers</a>
-        <a href="#about" class="hover:text-emerald-400">Story</a>
-        <a href="#gallery" class="hover:text-emerald-400">Gallery</a>
-        <a href="#faq" class="hover:text-emerald-400">FAQ</a>
-        <a href="#leaders" class="hover:text-emerald-400">Leaders</a>
+        <a href="#tiers" class="hover:text-[#00C1FF]">WL Tiers</a>
+        <a href="#about" class="hover:text-[#00C1FF]">Story</a>
+        <a href="#gallery" class="hover:text-[#00C1FF]">Gallery</a>
+        <a href="#faq" class="hover:text-[#00C1FF]">FAQ</a>
+        <a href="#leaders" class="hover:text-[#00C1FF]">Leaders</a>
       </nav>
-      <a href="#tiers" class="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold px-4 py-2 rounded-xl">Join WL<span>→</span></a>
+      <a href="#tiers" class="btn-ton px-4 py-2 rounded-xl">Join WL<span>→</span></a>
     </div>
   </header>
 
   <!-- HERO -->
   <section class="relative overflow-hidden">
-    <div class="absolute inset-0 bg-gradient-to-b from-emerald-600/10 via-emerald-400/5 to-transparent"></div>
+    <div class="absolute inset-0 bg-gradient-to-b from-[#0098EA]/20 via-[#00C1FF]/10 to-transparent"></div>
     <div class="max-w-6xl mx-auto px-4 py-16 md:py-24 grid md:grid-cols-2 gap-10 items-center">
       <div>
         <h1 class="text-3xl md:text-5xl font-extrabold leading-tight">TON Fans V2 — Genesis Reboot WL</h1>
         <p class="mt-4 text-zinc-300">V1 was a beta. V2 is 🔥. 4 coin types. Ultra‑rare Diamonds (270 total). Pay via CryptoBot and secure your OG slot.</p>
         <div class="mt-6 flex gap-3">
-          <a href="#tiers" class="px-5 py-3 rounded-xl bg-emerald-500 text-black font-semibold hover:bg-emerald-400">Join Whitelist</a>
-          <a href="https://twitter.com/ton_fans" target="_blank" class="px-5 py-3 rounded-xl border border-white/15 hover:border-white/30">X / Twitter</a>
+          <a href="#tiers" class="btn-ton px-5 py-3 rounded-xl">Join Whitelist</a>
+          <a href="https://twitter.com/ton_fans" target="_blank" class="btn-outline">X / Twitter</a>
         </div>
       </div>
       <div class="relative">
@@ -55,19 +69,19 @@
 
   <!-- STATS -->
   <section id="about" class="max-w-6xl mx-auto px-4 py-10 grid grid-auto gap-6">
-    <div class="p-5 rounded-2xl border border-white/10 bg-white/5">
+    <div class="p-5 rounded-2xl border border-white/10 bg-white/5 card">
       <div class="text-3xl font-bold">4</div>
       <div class="text-sm text-zinc-400">Coin types</div>
     </div>
-    <div class="p-5 rounded-2xl border border-white/10 bg-white/5">
+    <div class="p-5 rounded-2xl border border-white/10 bg-white/5 card">
       <div class="text-3xl font-bold">270</div>
       <div class="text-sm text-zinc-400">Diamonds total</div>
     </div>
-    <div class="p-5 rounded-2xl border border-white/10 bg-white/5">
+    <div class="p-5 rounded-2xl border border-white/10 bg-white/5 card">
       <div class="text-3xl font-bold">1000+</div>
       <div class="text-sm text-zinc-400">GEN supply</div>
     </div>
-    <div class="p-5 rounded-2xl border border-white/10 bg-white/5">
+    <div class="p-5 rounded-2xl border border-white/10 bg-white/5 card">
       <div class="text-3xl font-bold">CryptoBot</div>
       <div class="text-sm text-zinc-400">Secure payments</div>
     </div>
@@ -80,7 +94,7 @@
 
     <div class="mt-8 grid md:grid-cols-3 gap-6">
       <!-- OG -->
-      <div class="p-6 rounded-2xl border border-white/10 bg-white/5 flex flex-col">
+      <div class="p-6 rounded-2xl border border-white/10 bg-white/5 flex flex-col card">
         <div class="text-sm uppercase tracking-widest text-zinc-400">OG WL</div>
         <div class="mt-2 text-3xl font-extrabold">5 TON</div>
         <ul class="mt-4 text-sm space-y-2 text-zinc-300">
@@ -88,25 +102,25 @@
           <li>OG chat access</li>
           <li>Hall of Fame: you are always listed as an old OG</li>
         </ul>
-        <a href="https://send.tg/pay?start=invoice_OG" target="_blank" class="mt-6 inline-flex justify-center items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500 text-black font-semibold hover:bg-emerald-400">Pay 5 TON</a>
+        <a href="https://send.tg/pay?start=invoice_OG" target="_blank" class="mt-6 btn-ton px-4 py-3 rounded-xl">Pay 5 TON</a>
         <div class="mt-3 text-xs text-zinc-400">Slots left: <span id="og-left">70</span></div>
       </div>
 
       <!-- DIAMOND -->
-      <div class="p-6 rounded-2xl border border-emerald-500/40 bg-emerald-500/5 flex flex-col">
-        <div class="text-sm uppercase tracking-widest text-emerald-300">Diamond WL</div>
+      <div class="p-6 rounded-2xl border border-[#0098EA]/40 bg-[#0098EA]/5 flex flex-col card card-diamond">
+        <div class="text-sm uppercase tracking-widest text-[#00C1FF]">Diamond WL</div>
         <div class="mt-2 text-3xl font-extrabold">12 TON</div>
         <ul class="mt-4 text-sm space-y-2 text-zinc-300">
           <li>Guaranteed Diamond airdrop</li>
           <li>VIP role in Leaders</li>
           <li>Eternal OG status</li>
         </ul>
-        <a href="https://send.tg/pay?start=invoice_DIAMOND" target="_blank" class="mt-6 inline-flex justify-center items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500 text-black font-semibold hover:bg-emerald-400">Pay 12 TON</a>
+        <a href="https://send.tg/pay?start=invoice_DIAMOND" target="_blank" class="mt-6 btn-ton px-4 py-3 rounded-xl">Pay 12 TON</a>
         <div class="mt-3 text-xs text-zinc-400">Slots left: <span id="diamond-left">50</span></div>
       </div>
 
       <!-- ULTRA -->
-      <div class="p-6 rounded-2xl border border-white/10 bg-white/5 flex flex-col">
+      <div class="p-6 rounded-2xl border border-white/10 bg-white/5 flex flex-col card">
         <div class="text-sm uppercase tracking-widest text-zinc-400">Ultra WL</div>
         <div class="mt-2 text-3xl font-extrabold">20 TON</div>
         <ul class="mt-4 text-sm space-y-2 text-zinc-300">
@@ -114,7 +128,7 @@
           <li>VIP channel with sneak secrets & alpha leaks</li>
           <li>Lifetime WL on next drops</li>
         </ul>
-        <a href="https://send.tg/pay?start=invoice_ULTRA" target="_blank" class="mt-6 inline-flex justify-center items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500 text-black font-semibold hover:bg-emerald-400">Pay 20 TON</a>
+        <a href="https://send.tg/pay?start=invoice_ULTRA" target="_blank" class="mt-6 btn-ton px-4 py-3 rounded-xl">Pay 20 TON</a>
         <div class="mt-3 text-xs text-zinc-400">Slots left: <span id="ultra-left">15</span></div>
       </div>
     </div>
@@ -125,10 +139,10 @@
     <h2 class="text-2xl md:text-3xl font-extrabold">Preview</h2>
     <p class="mt-2 text-zinc-300">A few samples from BigGEN / LittlGEN and Diamond variants.</p>
     <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-      <img class="rounded-xl ring-1 ring-white/10" src="https://raw.githubusercontent.com/<your>/<repo>/main/static/sample1.png" alt="coin"/>
-      <img class="rounded-xl ring-1 ring-white/10" src="https://raw.githubusercontent.com/<your>/<repo>/main/static/sample2.png" alt="coin"/>
-      <img class="rounded-xl ring-1 ring-white/10" src="https://raw.githubusercontent.com/<your>/<repo>/main/static/sample3.png" alt="coin"/>
-      <img class="rounded-xl ring-1 ring-white/10" src="https://raw.githubusercontent.com/<your>/<repo>/main/static/sample4.png" alt="coin"/>
+      <img class="rounded-xl ring-1 ring-white/10 card" src="https://raw.githubusercontent.com/<your>/<repo>/main/static/sample1.png" alt="coin"/>
+      <img class="rounded-xl ring-1 ring-white/10 card" src="https://raw.githubusercontent.com/<your>/<repo>/main/static/sample2.png" alt="coin"/>
+      <img class="rounded-xl ring-1 ring-white/10 card" src="https://raw.githubusercontent.com/<your>/<repo>/main/static/sample3.png" alt="coin"/>
+      <img class="rounded-xl ring-1 ring-white/10 card" src="https://raw.githubusercontent.com/<your>/<repo>/main/static/sample4.png" alt="coin"/>
     </div>
   </section>
 
@@ -136,9 +150,9 @@
   <section id="leaders" class="max-w-6xl mx-auto px-4 py-14">
     <h2 class="text-2xl md:text-3xl font-extrabold">WL Leaders (live)</h2>
     <p class="mt-2 text-zinc-300">Public transparency. Every slot claimed is announced here.</p>
-    <div class="mt-6 p-6 rounded-2xl border border-white/10 bg-white/5 text-sm text-zinc-300">
+    <div class="mt-6 p-6 rounded-2xl border border-white/10 bg-white/5 text-sm text-zinc-300 card">
       <p>🎉 @username just secured a Diamond WL spot! Rank: #12/50</p>
-      <p class="mt-2">Progress: <span class="inline-block align-middle w-48 h-2 bg-white/10 rounded-full overflow-hidden"><span id="progress-bar" class="block h-full bg-emerald-500" style="width:24%"></span></span> <span id="progress-text">12/50</span></p>
+      <p class="mt-2">Progress: <span class="inline-block align-middle w-48 h-2 bg-white/10 rounded-full overflow-hidden"><span id="progress-bar" class="block h-full" style="width:24%;background:linear-gradient(90deg,var(--ton),var(--ton2))"></span></span> <span id="progress-text">12/50</span></p>
     </div>
   </section>
 
@@ -146,15 +160,15 @@
   <section id="faq" class="max-w-6xl mx-auto px-4 py-14">
     <h2 class="text-2xl md:text-3xl font-extrabold">FAQ</h2>
     <div class="mt-6 grid gap-4">
-      <details class="p-5 rounded-2xl border border-white/10 bg-white/5">
+      <details class="p-5 rounded-2xl border border-white/10 bg-white/5 card">
         <summary class="font-semibold cursor-pointer">How do I join WL?</summary>
         <p class="mt-2 text-zinc-300">Click one of the CryptoBot buttons above, complete the payment, and add your @username in the comment field of the payment. This way your slot is reserved instantly and we can airdrop to you after launch.</p>
       </details>
-      <details class="p-5 rounded-2xl border border-white/10 bg-white/5">
+      <details class="p-5 rounded-2xl border border-white/10 bg-white/5 card">
         <summary class="font-semibold cursor-pointer">When is the mint?</summary>
         <p class="mt-2 text-zinc-300">The WL is slot-based, not time-limited. Once slots are filled, the collection will be deployed and listed. After listing, NFTs are airdropped to all WL participants according to their tier (OG, Diamond, Ultra).</p>
       </details>
-      <details class="p-5 rounded-2xl border border-white/10 bg-white/5">
+      <details class="p-5 rounded-2xl border border-white/10 bg-white/5 card">
         <summary class="font-semibold cursor-pointer">What do I receive?</summary>
         <p class="mt-2 text-zinc-300">OG: GEN airdrop. Diamond: guaranteed Diamond airdrop. Ultra: Diamond + bonus GEN + your name forever in Hall of Fame & access to VIP insights channel.</p>
       </details>
@@ -165,9 +179,9 @@
     <div class="max-w-6xl mx-auto px-4 py-8 text-sm text-zinc-400 flex flex-col md:flex-row gap-4 items-center justify-between">
       <div>© TON Fans V2 — Genesis Reboot</div>
       <div class="flex items-center gap-4">
-        <a href="https://twitter.com/ton_fans" class="hover:text-emerald-400">Twitter</a>
-        <a href="#" class="hover:text-emerald-400">Leaders Channel</a>
-        <a href="#" class="hover:text-emerald-400">Getgems</a>
+        <a href="https://twitter.com/ton_fans" class="hover:text-[#00C1FF]">Twitter</a>
+        <a href="#" class="hover:text-[#00C1FF]">Leaders Channel</a>
+        <a href="#" class="hover:text-[#00C1FF]">Getgems</a>
       </div>
     </div>
   </footer>
