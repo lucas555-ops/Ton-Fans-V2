@@ -1080,16 +1080,33 @@ function flashReady(){
     }
 
     async function disconnectWallet(){
+      const provider = getProvider();
       try{
-        await getProvider()?.disconnect?.();
-      }catch(e){}
+        await provider?.disconnect?.();
+      }catch(e){
+        // ignore provider errors
+      }
 
       // Clear cached pk/flags
-      setLastPubkey("");
+      clearLastPubkey();
       window.__tonfans_connected = false;
       try { localStorage.removeItem("tonfans_autoconnect"); } catch {}
 
+      // Reset wallet UI (no mixed signals)
+      walletAddr.textContent = "";
+      walletAddr.classList.add("hidden");
+      walletStatus.textContent = "Not connected";
+      walletStatus.style.color = "var(--muted)";
+
+      // Reset CTAs
+      connectBtn.classList.remove("hidden");
+      disconnectBtn.classList.add("hidden");
+
+      // Sync everything
       syncConnectCTA();
+      updateMintReady();
+      updateHealth();
+      updateStickyBar();
     }
 
     
@@ -1199,9 +1216,7 @@ function updateMintReady(){
     document.getElementById("qtyMinus").addEventListener("click", () => setQty(qty - 1));
     document.getElementById("qtyPlus").addEventListener("click", () => setQty(qty + 1));
     connectBtn.addEventListener("click", connectWallet);
-    disconnectBtn.addEventListener("click", disconnectWallet);
-
-    // Sticky bar actions
+    dis    // Sticky bar actions
     if (stickyChangeBtn){
       stickyChangeBtn.addEventListener("click", () => {
         const el = document.getElementById("tiers");
