@@ -532,7 +532,7 @@
           <!-- Selected tier (anchored left on desktop) -->
           <div class="selected-tier-card mt-7" aria-live="polite">
             <div class="text-xs uppercase tracking-[.2em] muted2">Selected tier</div>
-            <div id="selectedTierLabel" class="mt-2 flex items-center justify-center gap-2 text-xl font-semibold">
+            <div id="selectedTierLabel" class="mt-2 flex items-center justify-start gap-2 text-xl font-semibold">
               <img
                 id="selectedTierThumb"
                 src=""
@@ -777,7 +777,7 @@
       const autoThumbSrc =
         opts.thumbSrc ||
         document
-          .querySelector(`.tier-card[data-tier="${tierKey}"] img`)
+          .querySelector(`.tier-card[data-tier="${selected}"] img`)
           ?.getAttribute("src") ||
         "";
       if (selectedTierThumb) {
@@ -1010,16 +1010,22 @@ function flashReady(){
       // "Ready" indicates wallet connection (Candy Machine may still be TBD)
       const isReady = hasWallet;
 
+      // Safe wallet pubkey string (avoid ReferenceError on undefined vars)
+      const provider = getProvider();
+      const walletPk = provider?.publicKey ? provider.publicKey.toString() : "";
+
       if (netPill) {
         netPill.textContent = "Mainnet";
       }
       if (walletPill) {
-        walletPill.textContent = hasWallet ? short(walletPubkey) : "Not connected";
+        walletPill.textContent = hasWallet && walletPk ? short(walletPk) : "Not connected";
       }
       if (readyPill) {
         readyPill.textContent = isReady ? "Yes" : "No";
-        readyPill.classList.toggle("good", isReady);
-        readyPill.classList.toggle("warn", !isReady);
+
+        // Subtle "Yes" tint on the whole pill (Jobs-clean)
+        const wrap = readyPill.closest('.pill');
+        if (wrap) wrap.classList.toggle('ready-yes', isReady);
       }
     }
 
