@@ -143,3 +143,62 @@
 .copy-btn--ok{
   border-color: rgba(0,193,255,.35) !important;
 }
+
+/* ---------- Tier selection micro-reaction (Jobs-level) ---------- */
+.tier-card.tier-pulse{
+  animation: tierPulse 520ms ease-out;
+}
+@keyframes tierPulse{
+  0%{ transform: translateZ(0) scale(1); }
+  45%{ transform: translateZ(0) scale(1.015); }
+  100%{ transform: translateZ(0) scale(1); }
+}
+
+/* ---------- Mint focus highlight ---------- */
+.mint-focus{ position: relative; }
+.mint-focus::after{
+  content:"";
+  position:absolute;
+  inset:-1px;
+  border-radius: inherit;
+  pointer-events:none;
+  border:1px solid rgba(0,193,255,.38);
+  box-shadow:
+    0 0 0 1px rgba(0,193,255,.18),
+    0 26px 90px rgba(0,193,255,.12);
+  opacity:0;
+  animation: mintFocus 720ms ease-out;
+}
+@keyframes mintFocus{
+  0%{ opacity:0; }
+  30%{ opacity:1; }
+  100%{ opacity:0; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .tier-card.tier-pulse{ animation:none; }
+  .mint-focus::after{ animation:none; opacity:0; }
+}
+
+/* ---------- Ready micro-copy (Jobs-level) ---------- */
+.ready-micro{
+  opacity:0;
+  transform: translateY(4px);
+  transition: opacity .18s ease, transform .18s ease;
+  will-change: opacity, transform;
+}
+
+.ready-micro.ready-pop{
+  opacity:1;
+  transform: translateY(0);
+}
+
+.ready-micro.ready-hide{
+  opacity:0;
+  transform: translateY(4px);
+}
+
+@media (prefers-reduced-motion: reduce){
+  .ready-micro{ transition:none; transform:none; opacity:1; }
+}
+
