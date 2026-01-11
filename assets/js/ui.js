@@ -176,11 +176,13 @@
 
 
 
-// ---------- Sticky Mint Bar auto-hide near Mint section (Jobs-level) ----------
+// ---------- Sticky Mint Bar auto-hide when Mint CTA is visible (Apple-clean) ----------
+// Hide sticky quick-actions only when the primary Mint button is actually visible.
+// This avoids duplicated CTAs and feels cleaner than section-based suppression.
 const setupStickyAutoHide = () => {
   const sticky = document.getElementById('stickyMintBar');
-  const mint = document.getElementById('mint');
-  if (!sticky || !mint) return;
+  const mintBtn = document.getElementById('mintBtn');
+  if (!sticky || !mintBtn) return;
 
   const apply = (hide) => {
     if (hide) {
@@ -198,17 +200,18 @@ const setupStickyAutoHide = () => {
   const io = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
-        // hide when mint section is meaningfully in view
+        // Hide when the actual Mint CTA is on screen.
         apply(entry.isIntersecting);
       });
     },
     {
-      threshold: 0.14,
-      rootMargin: '0px 0px -48% 0px',
+      threshold: 0.12,
+      // Slightly earlier suppression as the button approaches the viewport.
+      rootMargin: '0px 0px -18% 0px',
     }
   );
 
-  io.observe(mint);
+  io.observe(mintBtn);
 };
 // ---------- Boot ----------
   document.addEventListener('DOMContentLoaded', () => {
