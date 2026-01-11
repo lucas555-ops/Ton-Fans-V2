@@ -638,7 +638,7 @@
       </div>
       <div class="sticky-mint__actions">
         <button id="stickyActionBtn" class="btn-primary btn-sm w-full md:w-auto">Connect</button>
-        <button id="stickyOpenBtn" class="btn-ghost btn-sm w-full md:w-auto">Open mint</button>
+        <button id="stickyChangeBtn" class="btn-ghost btn-sm w-full md:w-auto">Change tier</button>
       </div>
     </div>
   </div>
@@ -681,7 +681,7 @@
     const stickyBar = document.getElementById("stickyMintBar");
     const stickySelected = document.getElementById("stickySelected");
     const stickyActionBtn = document.getElementById("stickyActionBtn");
-    const stickyOpenBtn = document.getElementById("stickyOpenBtn");
+    const stickyChangeBtn = document.getElementById("stickyChangeBtn");
     let userTierPicked = false;
 
 
@@ -869,9 +869,9 @@ function flashReady(){
     disconnectBtn.addEventListener("click", disconnectWallet);
 
     // Sticky bar actions
-    if (stickyOpenBtn){
-      stickyOpenBtn.addEventListener("click", () => {
-        document.getElementById("mint")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (stickyChangeBtn){
+      stickyChangeBtn.addEventListener("click", () => {
+        document.getElementById("tiers")?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     }
     if (stickyActionBtn){
