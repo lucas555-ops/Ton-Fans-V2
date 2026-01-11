@@ -395,3 +395,28 @@ body.has-sticky{
   background: rgba(34,197,94,.10);
   border-color: rgba(34,197,94,.18);
 }
+
+/* Ready pill (top-right): subtle green tint when wallet is connected */
+.pill.ready-yes{
+  border-color: rgba(16,185,129,.28);
+  background: rgba(16,185,129,.06);
+}
+.pill.ready-yes strong{
+  color: rgba(16,185,129,.92);
+}
+
+/* Tier badge: keep edges crisp over card glow (mobile artefact fix) */
+.tier-badge{
+  position: relative;
+  z-index: 2;
+  border-color: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.06);
+}
+
+/* Tier badge: keep border crisp above glow layers (prevents minor outline artefacts on some mobile GPUs) */
+.tier-badge{
+  position: relative;
+  z-index: 2;
+  border-color: rgba(255,255,255,.18);
+  background: rgba(255,255,255,.07);
+}
