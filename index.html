@@ -725,6 +725,11 @@
     const stickyChangeBtn = document.getElementById("stickyChangeBtn");
     let userTierPicked = false;
 
+    // Cached pubkey for edge-cases (esp. in-app mobile browsers) where
+    // provider.publicKey / provider.isConnected may lag behind the connect() result.
+    let lastPubkey = "";
+    const LAST_PK_KEY = "tonfans_last_pubkey";
+
 
     const walletStatus = document.getElementById("walletStatus");
     const walletAddr = document.getElementById("walletAddr");
@@ -909,10 +914,36 @@ function flashReady(){
       const p = getProvider();
       return !!(p && typeof p.connect === "function");
     }
+
+    function loadLastPubkey(){
+      if (lastPubkey) return lastPubkey;
+      try {
+        lastPubkey = sessionStorage.getItem(LAST_PK_KEY) || "";
+      } catch {
+        lastPubkey = "";
+      }
+      return lastPubkey;
+    }
+
+    function setLastPubkey(pk){
+      lastPubkey = pk || "";
+      try {
+        if (lastPubkey) sessionStorage.setItem(LAST_PK_KEY, lastPubkey);
+        else sessionStorage.removeItem(LAST_PK_KEY);
+      } catch {}
+    }
+
+    function getWalletPubkeyStr(){
+      const p = getProvider();
+      const pk = p?.publicKey?.toString?.() || "";
+      return pk || loadLastPubkey();
+    }
+
     function isWalletConnected(){
       const p = getProvider();
       // Some providers set isConnected, some only expose publicKey
-      return !!(p && (p.isConnected || p.publicKey));
+      const providerConnected = !!(p && (p.isConnected || p.publicKey));
+      return providerConnected || !!loadLastPubkey();
     }
 
     function syncConnectCTA(){
@@ -939,8 +970,8 @@ function flashReady(){
       connectBtn.dataset.mode = "connect";
 
       if (connected){
-        const p = getProvider();
-        const pk = p?.publicKey?.toString?.() || "";
+        const pk = getWalletPubkeyStr();
+        if (pk) setLastPubkey(pk);
         walletAddr.textContent = pk ? (pk.slice(0,4) + "…" + pk.slice(-4)) : "";
         walletAddr.classList.toggle("hidden", !pk);
 
@@ -972,7 +1003,11 @@ function flashReady(){
       const provider = getProvider();
       try{
         const res = await provider.connect();
-        const pubkey = res?.publicKey?.toString?.() || provider.publicKey?.toString?.() || "";
+        const pubkey = (res?.publicKey?.toString?.() || provider.publicKey?.toString?.() || "").trim();
+        if (pubkey) {
+          setLastPubkey(pubkey);
+          try { localStorage.setItem("tonfans_autoconnect", "1"); } catch {}
+        }
         walletAddr.textContent = pubkey ? (pubkey.slice(0,4) + "…" + pubkey.slice(-4)) : "";
         walletAddr.classList.toggle("hidden", !pubkey);
 
@@ -982,6 +1017,7 @@ function flashReady(){
         disconnectBtn.classList.remove("hidden");
 
         updateMintReady();
+        updateHealth();
         updateStickyBar();
         updateHealth();
       }catch(e){
@@ -999,6 +1035,11 @@ function flashReady(){
         await getProvider()?.disconnect?.();
       }catch(e){}
 
+      // Clear cached pk/flags
+      setLastPubkey("");
+      window.__tonfans_connected = false;
+      try { localStorage.removeItem("tonfans_autoconnect"); } catch {}
+
       syncConnectCTA();
     }
 
@@ -1010,9 +1051,8 @@ function flashReady(){
       // "Ready" indicates wallet connection (Candy Machine may still be TBD)
       const isReady = hasWallet;
 
-      // Safe wallet pubkey string (avoid ReferenceError on undefined vars)
-      const provider = getProvider();
-      const walletPk = provider?.publicKey ? provider.publicKey.toString() : "";
+      // Safe wallet pubkey string (works even if provider.publicKey lags)
+      const walletPk = getWalletPubkeyStr();
 
       if (netPill) {
         netPill.textContent = "Mainnet";
