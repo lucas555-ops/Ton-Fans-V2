@@ -629,6 +629,21 @@
     </div>
   </footer>
 
+  <!-- STICKY MINT BAR (appears after tier selection) -->
+  <div id="stickyMintBar" class="sticky-mint hidden" role="region" aria-label="Mint quick actions">
+    <div class="sticky-mint__inner">
+      <div class="sticky-mint__meta">
+        <div class="sticky-mint__label">Selected</div>
+        <div class="sticky-mint__value" id="stickySelected">—</div>
+      </div>
+      <div class="sticky-mint__actions">
+        <button id="stickyActionBtn" class="btn-primary btn-sm w-full md:w-auto">Connect</button>
+        <button id="stickyOpenBtn" class="btn-ghost btn-sm w-full md:w-auto">Open mint</button>
+      </div>
+    </div>
+  </div>
+
+
   <script>
     // =========================
     // CONFIG — set these after deploy
@@ -662,6 +677,13 @@
     const qtyEl = document.getElementById("qty");
     const mintBtn = document.getElementById("mintBtn");
     const mintHint = document.getElementById("mintHint");
+    // Sticky mint bar (shows after user picks a tier)
+    const stickyBar = document.getElementById("stickyMintBar");
+    const stickySelected = document.getElementById("stickySelected");
+    const stickyActionBtn = document.getElementById("stickyActionBtn");
+    const stickyOpenBtn = document.getElementById("stickyOpenBtn");
+    let userTierPicked = false;
+
 
     const walletStatus = document.getElementById("walletStatus");
     const walletAddr = document.getElementById("walletAddr");
@@ -675,26 +697,33 @@
 
     // Helpers
     function fmt(n){ return (Math.round(n*1000)/1000).toFixed(n === 0.125 ? 3 : 2).replace(/\.00$/, ".00"); }
-    function setTier(key){
+    function setTier(key, opts = {}){
       selected = key;
       const t = tiers[selected];
 
       tierCards.forEach(c => c.classList.toggle("tier-selected", c.dataset.tier === selected));
 
-      // Jobs-level micro feedback: pulse selected tier + softly highlight the Mint module
-      const activeTier = Array.from(tierCards).find(c => c.dataset.tier === selected);
-      if(activeTier){
-        activeTier.classList.add("tier-pulse");
-        setTimeout(() => activeTier.classList.remove("tier-pulse"), 520);
-      }
-      const mintCard = document.querySelector("#mint > div.card");
-      if(mintCard){
-        mintCard.classList.add("mint-focus");
-        setTimeout(() => mintCard.classList.remove("mint-focus"), 720);
-      }
+      const silent = !!opts.silent;
 
-      // Ultra-small Jobs micro-copy: "Ready." (600ms)
-      flashReady();
+      // Jobs-level micro feedback: only on user action
+      if(!silent){
+        userTierPicked = true;
+
+        // pulse selected tier + softly highlight the Mint module
+        const activeTier = Array.from(tierCards).find(c => c.dataset.tier === selected);
+        if(activeTier){
+          activeTier.classList.add("tier-pulse");
+          setTimeout(() => activeTier.classList.remove("tier-pulse"), 520);
+        }
+        const mintCard = document.querySelector("#mint > div.card");
+        if(mintCard){
+          mintCard.classList.add("mint-focus");
+          setTimeout(() => mintCard.classList.remove("mint-focus"), 650);
+        }
+
+        flashReady();
+        showStickyBar();
+      }
 
       selectedTierLabel.textContent = t.label;
       selectedTierMeta.textContent = "guard: " + t.guard;
@@ -702,12 +731,47 @@
       totalEl.textContent = (t.price * qty).toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
 
       const tweet = encodeURIComponent(
-        `the rays aren’t random.\n\ninspired by π — infinite geometry for an open network.\n\nTON coin aesthetics. Solana mint.\n\nTier: ${t.label} (${t.price} SOL)`
+        `the rays aren’t random.\n\ninspired by π — infinite geometry.\n\nton aesthetics. Solana mint.\n\nTier: ${t.label} (${t.price} SOL)`
       );
       shareX.href = "https://x.com/intent/tweet?text=" + tweet;
+
+      updateStickyBar();
     }
 
-    function flashReady(){
+    function showStickyBar(){
+      if(!stickyBar) return;
+      stickyBar.classList.remove("hidden");
+      stickyBar.classList.add("sticky-in");
+      document.body.classList.add("has-sticky");
+    }
+
+    function updateStickyBar(){
+      if(!stickyBar || !userTierPicked) return;
+      const t = tiers[selected];
+
+      const priceText = (t.price).toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+      if(stickySelected){
+        stickySelected.textContent = `${t.label} • ${priceText} SOL • ${t.supply} supply`;
+      }
+
+      const hasWallet = !!(window.solana?.isPhantom && window.solana?.isConnected);
+      const hasCM = !!(CANDY_MACHINE_ADDRESS && CANDY_MACHINE_ADDRESS.length > 20);
+
+      if(stickyActionBtn){
+        if(!hasWallet){
+          stickyActionBtn.disabled = false;
+          stickyActionBtn.textContent = "Connect";
+        }else if(hasWallet && !hasCM){
+          stickyActionBtn.disabled = true;
+          stickyActionBtn.textContent = "Mint (soon)";
+        }else{
+          stickyActionBtn.disabled = false;
+          stickyActionBtn.textContent = "Mint";
+        }
+      }
+    }
+
+function flashReady(){
       const el = document.getElementById("tierReady");
       if (!el) return;
       el.classList.remove("ready-hide");
@@ -794,6 +858,7 @@
       }
 
       updateMintReady();
+      updateStickyBar();
     }
 
     // Events
@@ -802,6 +867,26 @@
     document.getElementById("qtyPlus").addEventListener("click", () => setQty(qty + 1));
     connectBtn.addEventListener("click", connectWallet);
     disconnectBtn.addEventListener("click", disconnectWallet);
+
+    // Sticky bar actions
+    if (stickyOpenBtn){
+      stickyOpenBtn.addEventListener("click", () => {
+        document.getElementById("mint")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+    if (stickyActionBtn){
+      stickyActionBtn.addEventListener("click", async () => {
+        const hasWallet = !!(window.solana?.isPhantom && window.solana?.isConnected);
+        if(!hasWallet){
+          await connectWallet();
+          return;
+        }
+        // Scroll to mint module for context, then trigger mint button (placeholder until CM is wired)
+        document.getElementById("mint")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setTimeout(() => mintBtn.click(), 220);
+      });
+    }
+
 
     mintBtn.addEventListener("click", () => {
       // Placeholder: actual mint integration comes after CM deploy (we'll wire candy machine mint here).
@@ -812,7 +897,7 @@
 
     // Initial UI
     initConfig();
-    setTier(selected);
+    setTier(selected, { silent: true });
     setQty(1);
   </script>
 
