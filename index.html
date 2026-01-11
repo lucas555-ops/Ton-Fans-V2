@@ -60,6 +60,31 @@
       background:rgba(255,255,255,.03);
       border-radius:9999px;padding:.38rem .62rem;font-size:.78rem;color:rgba(255,255,255,.78);
     }
+    .pill.has-dot{gap:.45rem;}
+    .status-dot{
+      width:8px;height:8px;border-radius:999px;flex:0 0 auto;
+      background:rgba(255,255,255,.22);
+      box-shadow:0 0 0 2px rgba(255,255,255,.05);
+      opacity:.75;
+    }
+    .status-dot.on{
+      background:rgba(94, 239, 165, .85); /* subtle green */
+      box-shadow:0 0 0 2px rgba(94,239,165,.12), 0 0 16px rgba(94,239,165,.18);
+      opacity:1;
+      animation:statusPulse 1.15s ease-in-out infinite;
+    }
+    @keyframes statusPulse{
+      0%{transform:scale(1);filter:saturate(1);}
+      50%{transform:scale(1.35);filter:saturate(1.1);}
+      100%{transform:scale(1);filter:saturate(1);}
+    }
+    .pill.ready-yes{
+      border-color:rgba(94,239,165,.22);
+      background:rgba(94,239,165,.045);
+    }
+    .pill.ready-yes strong{color:rgba(140,255,200,.92);}
+    .pill.wallet-yes{border-color:rgba(0,193,255,.22);}
+    .pill.wallet-yes strong{color:rgba(200,245,255,.95);}
     .card{
       background:var(--card);
       border:1px solid rgba(255,255,255,.10);
@@ -551,8 +576,8 @@
         <div class="md:text-right">
           <div class="mt-1 flex flex-wrap gap-2 justify-start md:justify-end">
             <div class="pill"><span class="muted">Network</span> <strong id="netPill">Mainnet</strong></div>
-            <div class="pill"><span class="muted">Wallet</span> <strong id="walletPill">Not connected</strong></div>
-            <div class="pill"><span class="muted">Ready</span> <strong id="readyPill" class="text-yellow-400">No</strong></div>
+            <div class="pill has-dot" id="walletPillWrap"><span class="status-dot" id="walletDot" aria-hidden="true"></span><span class="muted">Wallet</span> <strong id="walletPill">Not connected</strong></div>
+            <div class="pill has-dot" id="readyPillWrap"><span class="status-dot" id="readyDot" aria-hidden="true"></span><span class="muted">Ready</span> <strong id="readyPill">No</strong></div>
           </div>
         </div>
       </div>
@@ -743,6 +768,10 @@
     const netPill = document.getElementById("netPill");
     const walletPill = document.getElementById("walletPill");
     const readyPill = document.getElementById("readyPill");
+    const walletDot = document.getElementById("walletDot");
+    const readyDot = document.getElementById("readyDot");
+    const readyPillWrap = document.getElementById("readyPillWrap");
+    const walletPillWrap = document.getElementById("walletPillWrap");
 
 
     // Helpers
@@ -1045,27 +1074,35 @@ function flashReady(){
 
     
     function updateHealth(){
-      const hasCM = !!(CANDY_MACHINE_ADDRESS && CANDY_MACHINE_ADDRESS.length > 20);
-      const providerOk = hasProvider();
-      const hasWallet = isWalletConnected();
-      // "Ready" indicates wallet connection (Candy Machine may still be TBD)
+      // Jobs-UX: "Ready" = wallet connected. "Mint ready" is a separate concept.
+      // Use the most reliable source of the public key:
+      // 1) provider.publicKey (extension / in-app)
+      // 2) sessionStorage (we persist after a successful connect)
+      const walletPk = getWalletPubkeyStr() || loadLastPubkey() || "";
+      const hasWallet = !!walletPk;
       const isReady = hasWallet;
-
-      // Safe wallet pubkey string (works even if provider.publicKey lags)
-      const walletPk = getWalletPubkeyStr();
 
       if (netPill) {
         netPill.textContent = "Mainnet";
       }
       if (walletPill) {
-        walletPill.textContent = hasWallet && walletPk ? short(walletPk) : "Not connected";
+        walletPill.textContent = hasWallet ? short(walletPk) : "Not connected";
+        if (walletPillWrap) walletPillWrap.classList.toggle('wallet-yes', hasWallet);
+        if (walletDot) {
+          walletDot.classList.toggle('on', hasWallet);
+          walletDot.classList.toggle('pulse', hasWallet);
+        }
       }
       if (readyPill) {
         readyPill.textContent = isReady ? "Yes" : "No";
 
         // Subtle "Yes" tint on the whole pill (Jobs-clean)
-        const wrap = readyPill.closest('.pill');
+        const wrap = readyPillWrap || readyPill.closest('.pill');
         if (wrap) wrap.classList.toggle('ready-yes', isReady);
+        if (readyDot) {
+          readyDot.classList.toggle('on', isReady);
+          readyDot.classList.toggle('pulse', isReady);
+        }
       }
     }
 
