@@ -174,11 +174,48 @@
     });
   };
 
+
+
+// ---------- Sticky Mint Bar auto-hide near Mint section (Jobs-level) ----------
+const setupStickyAutoHide = () => {
+  const sticky = document.getElementById('stickyMintBar');
+  const mint = document.getElementById('mint');
+  if (!sticky || !mint) return;
+
+  const apply = (hide) => {
+    if (hide) {
+      sticky.classList.add('sticky-suppressed');
+      document.body.classList.remove('has-sticky');
+    } else {
+      sticky.classList.remove('sticky-suppressed');
+      // Only add padding if sticky is actually shown
+      if (!sticky.classList.contains('hidden')) {
+        document.body.classList.add('has-sticky');
+      }
+    }
+  };
+
+  const io = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        // hide when mint section is meaningfully in view
+        apply(entry.isIntersecting);
+      });
+    },
+    {
+      threshold: 0.14,
+      rootMargin: '0px 0px -48% 0px',
+    }
+  );
+
+  io.observe(mint);
+};
 // ---------- Boot ----------
   document.addEventListener('DOMContentLoaded', () => {
     enhanceCards();
     setupReveal();
     setupCopyButtons();
     setupSectionFocus();
+    setupStickyAutoHide();
   });
 })();
