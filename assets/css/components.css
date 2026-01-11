@@ -234,6 +234,12 @@ body.has-sticky{
   transform: translateX(-50%) translateY(0);
 }
 
+.sticky-mint.sticky-suppressed{
+  opacity: 0 !important;
+  transform: translateX(-50%) translateY(10px) !important;
+  pointer-events: none;
+}
+
 .sticky-mint__inner{
   display: flex;
   gap: 12px;
