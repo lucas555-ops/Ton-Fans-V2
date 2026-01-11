@@ -446,11 +446,24 @@
 
         <div class="card p-5">
           <div class="text-xs uppercase tracking-widest muted2">Guard groups (prices)</div>
-          <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
-            <div class="pill"><span class="mono">littlegen</span> · 0.10</div>
-            <div class="pill"><span class="mono">biggen</span> · 0.125</div>
-            <div class="pill"><span class="mono">littlegen_diamond</span> · 0.15</div>
-            <div class="pill"><span class="mono">biggen_diamond</span> · 0.20</div>
+          <!-- Mobile-first: keep the price pills readable (no overlap) -->
+          <div class="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            <div class="pill flex items-center justify-between gap-2">
+              <span class="mono">littlegen</span>
+              <span class="mono muted2">0.10</span>
+            </div>
+            <div class="pill flex items-center justify-between gap-2">
+              <span class="mono">biggen</span>
+              <span class="mono muted2">0.125</span>
+            </div>
+            <div class="pill flex items-center justify-between gap-2">
+              <span class="mono">littlegen_diamond</span>
+              <span class="mono muted2">0.15</span>
+            </div>
+            <div class="pill flex items-center justify-between gap-2">
+              <span class="mono">biggen_diamond</span>
+              <span class="mono muted2">0.20</span>
+            </div>
           </div>
         </div>
 
@@ -519,12 +532,13 @@
           </div>
 
         </div>
-        <div class="text-right">
+        <!-- Mobile: keep this block clean/left-aligned; desktop: right-aligned -->
+        <div class="text-left md:text-right">
           <div class="text-xs uppercase tracking-widest muted2">Selected tier</div>
           <div id="selectedTierLabel" class="mt-1 text-lg font-semibold">LittlGEN</div>
           <div id="selectedTierMeta" class="mt-1 text-sm muted2 mono">guard: littlegen</div>
           <div id="tierReady" class="ready-micro mt-2 text-xs uppercase tracking-[.18em] accent ready-hide">Ready.</div>
-          <div class="mt-3 flex flex-wrap justify-end gap-2">
+          <div class="mt-3 flex flex-wrap justify-start md:justify-end gap-2">
             <span class="pill"><span class="muted2">Network</span>&nbsp;<span id="healthNetwork" class="text-white font-semibold">Mainnet</span></span>
             <span class="pill"><span class="muted2">Wallet</span>&nbsp;<span id="healthWallet" class="text-white font-semibold">—</span></span>
             <span class="pill"><span class="muted2">Ready</span>&nbsp;<span id="healthReady" class="text-white font-semibold">No</span></span>
@@ -817,8 +831,48 @@ function flashReady(){
       return window.solana || (window.phantom && window.phantom.solana) || null;
     }
     function phantomDeepLink(){
-      // Universal deep link (iOS + Android)
-      return "https://phantom.app/ul/browse/" + encodeURIComponent(window.location.href);
+      // Universal deep link (iOS + Android).
+      // We also append an "autoconnect=1" hint so that, once opened inside Phantom's in-app browser,
+      // the page can immediately request wallet permissions without asking the user to tap Connect twice.
+      const u = new URL(window.location.href);
+      u.searchParams.set("autoconnect", "1");
+      return "https://phantom.app/ul/browse/" + encodeURIComponent(u.toString());
+    }
+
+    function shouldAutoConnect(){
+      try {
+        const u = new URL(window.location.href);
+        const qp = u.searchParams.get("autoconnect") === "1";
+        const ls = localStorage.getItem("tonfans_autoconnect") === "1";
+        return qp || ls;
+      } catch { return false; }
+    }
+
+    function clearAutoConnect(){
+      try {
+        const u = new URL(window.location.href);
+        if (u.searchParams.has("autoconnect")){
+          u.searchParams.delete("autoconnect");
+          window.history.replaceState({}, "", u.toString());
+        }
+      } catch {}
+      try { localStorage.removeItem("tonfans_autoconnect"); } catch {}
+    }
+
+    async function autoConnectIfRequested(){
+      if (!shouldAutoConnect()) return;
+      // avoid loops / repeated prompts
+      clearAutoConnect();
+      if (!hasProvider() || isWalletConnected()){
+        syncConnectCTA();
+        return;
+      }
+      try {
+        await getProvider().connect();
+      } catch (e) {
+        // user may reject; keep UI consistent
+      }
+      syncConnectCTA();
     }
     function hasProvider(){
       const p = getProvider();
@@ -879,6 +933,7 @@ function flashReady(){
     async function connectWallet(){
       // Variant A: only if Phantom/provider missing → deep link
       if (!hasProvider()){
+        try{ localStorage.setItem("tonfans_autoconnect", "1"); }catch(_e){}
         window.location.href = phantomDeepLink();
         return;
       }
@@ -1032,6 +1087,7 @@ function updateMintReady(){
         const hasCM = !!(CANDY_MACHINE_ADDRESS && CANDY_MACHINE_ADDRESS.length > 20);
 
         if (!providerOk){
+          try{ localStorage.setItem("tonfans_autoconnect", "1"); }catch(_e){}
           window.location.href = phantomDeepLink();
           return;
         }
@@ -1063,6 +1119,8 @@ function updateMintReady(){
 
     // Initial UI
     initConfig();
+    // If we arrived via Phantom deep-link, request wallet connection once.
+    autoConnectIfRequested();
     // Wallet UI sync (shows Open in Phantom if missing)
     syncConnectCTA();
     setTier(selected, { silent: true });
