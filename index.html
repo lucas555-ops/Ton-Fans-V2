@@ -913,6 +913,7 @@ function updateMintReady(){
       stickyChangeBtn.addEventListener("click", () => {
         const el = document.getElementById("tiers");
         el?.scrollIntoView({ behavior: "smooth", block: "start" });
+
         // Jobs-level: quick visual confirmation of where to look
         if (el){
           setTimeout(() => {
@@ -923,7 +924,22 @@ function updateMintReady(){
             setTimeout(() => el.classList.remove("section-flash"), 900);
           }, 420);
         }
+
+        // Guided UX: if a tier is already selected, bring the selected card into view and pulse it
+        setTimeout(() => {
+          if (!userTierPicked) return;
+          const activeTier = Array.from(tierCards).find(c => c.dataset.tier === selected);
+          if (!activeTier) return;
+
+          // center the selected tier card (subtle) + focus for accessibility
+          activeTier.scrollIntoView({ behavior: "smooth", block: "center" });
+          try { activeTier.focus({ preventScroll: true }); } catch (_) {}
+
+          activeTier.classList.add("tier-pulse");
+          setTimeout(() => activeTier.classList.remove("tier-pulse"), 520);
+        }, 520);
       });
+
     }
     if (stickyActionBtn){
       stickyActionBtn.addEventListener("click", async () => {
