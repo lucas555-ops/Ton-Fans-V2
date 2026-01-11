@@ -532,7 +532,17 @@
           <!-- Selected tier (anchored left on desktop) -->
           <div class="selected-tier-card mt-7" aria-live="polite">
             <div class="text-xs uppercase tracking-[.2em] muted2">Selected tier</div>
-            <div id="selectedTierLabel" class="mt-2 text-xl font-semibold">—</div>
+            <div id="selectedTierLabel" class="mt-2 flex items-center justify-center gap-2 text-xl font-semibold">
+              <img
+                id="selectedTierThumb"
+                src=""
+                alt=""
+                class="hidden h-7 w-7 rounded-md border border-white/10 bg-white/5 object-cover"
+                loading="lazy"
+                decoding="async"
+              />
+              <span id="selectedTierName">—</span>
+            </div>
             <div id="selectedTierMeta" class="mt-2 monospace muted text-sm">guard: —</div>
             <div id="tierReady" class="ready-micro mt-2 text-xs uppercase tracking-[.18em] accent ready-hide">Ready.</div>
           </div>
@@ -700,6 +710,8 @@
     // Elements
     const tierCards = document.querySelectorAll(".tier-card");
     const selectedTierLabel = document.getElementById("selectedTierLabel");
+    const selectedTierThumb = document.getElementById("selectedTierThumb");
+    const selectedTierName = document.getElementById("selectedTierName");
     const selectedTierMeta = document.getElementById("selectedTierMeta");
     const priceEl = document.getElementById("price");
     const totalEl = document.getElementById("total");
@@ -723,9 +735,9 @@
     const treasuryAddress = document.getElementById("treasuryAddress");
     const explorerLink = document.getElementById("explorerLink");
     const shareX = document.getElementById("shareX");
-    const healthNetwork = document.getElementById("healthNetwork");
-    const healthWallet = document.getElementById("healthWallet");
-    const healthReady = document.getElementById("healthReady");
+    const netPill = document.getElementById("netPill");
+    const walletPill = document.getElementById("walletPill");
+    const readyPill = document.getElementById("readyPill");
 
 
     // Helpers
@@ -758,7 +770,25 @@
         showStickyBar();
       }
 
-      selectedTierLabel.textContent = t.label;
+      if (selectedTierName) selectedTierName.textContent = t.label;
+      else selectedTierLabel.textContent = t.label;
+
+      // Thumbnail: use the clicked card image if provided, otherwise derive from the tier card
+      const autoThumbSrc =
+        opts.thumbSrc ||
+        document
+          .querySelector(`.tier-card[data-tier="${tierKey}"] img`)
+          ?.getAttribute("src") ||
+        "";
+      if (selectedTierThumb) {
+        if (autoThumbSrc) {
+          selectedTierThumb.src = autoThumbSrc;
+          selectedTierThumb.classList.remove("hidden");
+        } else {
+          selectedTierThumb.removeAttribute("src");
+          selectedTierThumb.classList.add("hidden");
+        }
+      }
       selectedTierMeta.textContent = "guard: " + t.guard;
       priceEl.textContent = t.price.toString();
       totalEl.textContent = (t.price * qty).toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
@@ -977,18 +1007,19 @@ function flashReady(){
       const hasCM = !!(CANDY_MACHINE_ADDRESS && CANDY_MACHINE_ADDRESS.length > 20);
       const providerOk = hasProvider();
       const hasWallet = isWalletConnected();
-      const isReady = hasCM && hasWallet;
+      // "Ready" indicates wallet connection (Candy Machine may still be TBD)
+      const isReady = hasWallet;
 
-      if (healthNetwork) {
-        healthNetwork.textContent = "Mainnet";
+      if (netPill) {
+        netPill.textContent = "Mainnet";
       }
-      if (healthWallet) {
-        healthWallet.textContent = hasWallet ? "Connected" : "Not connected";
-        healthWallet.style.color = hasWallet ? "var(--good)" : "";
+      if (walletPill) {
+        walletPill.textContent = hasWallet ? short(walletPubkey) : "Not connected";
       }
-      if (healthReady) {
-        healthReady.textContent = isReady ? "Yes" : "No";
-        healthReady.style.color = isReady ? "var(--good)" : "var(--warn)";
+      if (readyPill) {
+        readyPill.textContent = isReady ? "Yes" : "No";
+        readyPill.classList.toggle("good", isReady);
+        readyPill.classList.toggle("warn", !isReady);
       }
     }
 
@@ -1042,7 +1073,11 @@ function updateMintReady(){
     }catch(_){}
 
     // Events
-    tierCards.forEach(c => c.addEventListener("click", () => setTier(c.dataset.tier)));
+    tierCards.forEach((c) =>
+      c.addEventListener("click", () =>
+        setTier(c.dataset.tier, { thumbSrc: c.querySelector("img")?.getAttribute("src") || "" })
+      )
+    );
     document.getElementById("qtyMinus").addEventListener("click", () => setQty(qty - 1));
     document.getElementById("qtyPlus").addEventListener("click", () => setQty(qty + 1));
     connectBtn.addEventListener("click", connectWallet);
