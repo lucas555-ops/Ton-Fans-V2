@@ -128,10 +128,57 @@
     });
   };
 
-  // ---------- Boot ----------
+  
+  // ---------- Section focus pulse (Jobs-level) ----------
+  const setupSectionFocus = () => {
+    const flash = (id) => {
+      if (!id) return;
+      const el = document.getElementById(id);
+      if (!el) return;
+      // restart animation cleanly
+      el.classList.remove('section-flash');
+      // eslint-disable-next-line no-unused-expressions
+      void el.offsetWidth;
+      el.classList.add('section-flash');
+      window.setTimeout(() => el.classList.remove('section-flash'), 900);
+    };
+
+    // Anchors like <a href="#tiers">
+    document.addEventListener('click', (e) => {
+      const a = e.target?.closest?.('a[href^="#"]');
+      if (!a) return;
+      const href = a.getAttribute('href') || '';
+      const id = href.slice(1);
+      if (!id) return;
+      // only for real sections, avoid noisy flashes on tiny jumps
+      if (id === 'tiers' || id === 'mint') {
+        window.setTimeout(() => flash(id), 420);
+      }
+    });
+
+    // Buttons opting in via data-focus="tiers"
+    document.addEventListener('click', (e) => {
+      const btn = e.target?.closest?.('[data-focus]');
+      if (!btn) return;
+      const id = btn.getAttribute('data-focus');
+      if (!id) return;
+      window.setTimeout(() => flash(id), 420);
+    });
+
+    // If user lands with hash
+    window.addEventListener('hashchange', () => {
+      const id = (window.location.hash || '').replace('#', '');
+      if (id === 'tiers' || id === 'mint') {
+        window.setTimeout(() => flash(id), 260);
+      }
+    });
+  };
+
+// ---------- Boot ----------
   document.addEventListener('DOMContentLoaded', () => {
     enhanceCards();
     setupReveal();
     setupCopyButtons();
+    setupSectionFocus();
   });
 })();
