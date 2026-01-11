@@ -305,4 +305,51 @@ body.has-sticky{
     transform: translateX(-50%) translateY(0);
   }
 }
- 
+
+
+/* Toast show class (matches assets/js/ui.js) */
+.toast--show{
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  transition: opacity .22s ease, transform .22s ease;
+}
+
+.toast-dot{
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(0,193,255,.85);
+  box-shadow: 0 0 0 3px rgba(0,193,255,.16);
+  display: inline-block;
+}
+
+.toast{
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+}
+
+/* ---------- Section focus pulse (for #tiers / #mint) ---------- */
+.section-flash{ position: relative; }
+.section-flash::after{
+  content:"";
+  position:absolute;
+  inset: -2px;
+  border-radius: 22px;
+  pointer-events:none;
+  border: 1px solid rgba(0,193,255,.40);
+  box-shadow:
+    0 0 0 1px rgba(0,193,255,.16),
+    0 26px 90px rgba(0,193,255,.12);
+  opacity: 0;
+  animation: sectionFlash 820ms ease-out;
+}
+@keyframes sectionFlash{
+  0%{ opacity:0; transform: translateY(0); }
+  28%{ opacity:1; }
+  100%{ opacity:0; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .section-flash::after{ animation:none; opacity:0; }
+}
