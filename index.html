@@ -520,11 +520,16 @@
 
         </div>
         <div class="text-right">
+          <div class="text-xs uppercase tracking-widest muted2">Selected tier</div>
+          <div id="selectedTierLabel" class="mt-1 text-lg font-semibold">LittlGEN</div>
+          <div id="selectedTierMeta" class="mt-1 text-sm muted2 mono">guard: littlegen</div>
+          <div id="tierReady" class="ready-micro mt-2 text-xs uppercase tracking-[.18em] accent ready-hide">Ready.</div>
           <div class="mt-3 flex flex-wrap justify-end gap-2">
             <span class="pill"><span class="muted2">Network</span>&nbsp;<span id="healthNetwork" class="text-white font-semibold">Mainnet</span></span>
             <span class="pill"><span class="muted2">Wallet</span>&nbsp;<span id="healthWallet" class="text-white font-semibold">—</span></span>
             <span class="pill"><span class="muted2">Ready</span>&nbsp;<span id="healthReady" class="text-white font-semibold">No</span></span>
           </div>
+
         </div>
       </div>
 
@@ -536,8 +541,8 @@
             <span id="walletAddr" class="mono text-sm text-white/90 hidden"></span>
           </div>
           <div class="mt-4 flex flex-wrap gap-2">
-            <button id="connectBtn" class="btn-primary w-full md:w-auto" type="button">Connect Wallet</button>
-            <button id="disconnectBtn" class="btn-ghost w-full md:w-auto hidden" type="button">Disconnect</button>
+            <button id="connectBtn" class="btn-primary w-full md:w-auto">Connect Wallet</button>
+            <button id="disconnectBtn" class="btn-ghost w-full md:w-auto hidden">Disconnect</button>
           </div>
           <div class="mt-3 text-xs muted2">Phantom recommended. Solflare also works if it exposes window.solana.</div>
         </div>
@@ -545,29 +550,20 @@
         <div class="card p-5">
           <div class="text-xs uppercase tracking-widest muted2">Quantity</div>
           <div class="mt-3 flex items-center gap-2">
-            <button id="qtyMinus" class="btn-ghost px-4" type="button">−</button>
+            <button id="qtyMinus" class="btn-ghost px-4">−</button>
             <div class="px-5 py-3 rounded-xl border border-white/10 bg-white/5 text-lg font-semibold" id="qty">1</div>
-            <button id="qtyPlus" class="btn-ghost px-4" type="button">+</button>
+            <button id="qtyPlus" class="btn-ghost px-4">+</button>
           </div>
           <div class="mt-2 text-xs muted2">Mint limit is enforced by Candy Guard (recommended: 3 per wallet).</div>
         </div>
 
         <div class="card p-5">
           <div class="text-xs uppercase tracking-widest muted2">Price</div>
-          <div class="mt-3 flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <div class="text-xs uppercase tracking-widest muted2">Selected tier</div>
-              <div id="selectedTierLabel" class="mt-1 text-lg font-semibold">LittlGEN</div>
-              <div id="selectedTierMeta" class="mt-1 text-sm muted2 mono">guard: littlegen</div>
-            </div>
-            <div id="tierReady" class="ready-micro mt-1 text-xs uppercase tracking-[.18em] accent ready-hide">Ready.</div>
-          </div>
-
           <div class="mt-2 text-3xl font-extrabold"><span id="price">0.10</span> SOL</div>
           <div class="mt-2 text-sm muted2">Estimated total: <span class="mono" id="total">0.10</span> SOL</div>
 
           <div class="mt-4 flex flex-wrap gap-2">
-            <button id="mintBtn" class="btn-primary w-full" disabled style="opacity:.55; cursor:not-allowed;" type="button">
+            <button id="mintBtn" class="btn-primary w-full" disabled style="opacity:.55; cursor:not-allowed;">
               Mint now
             </button>
             <a id="mintHelp" class="btn-ghost w-full text-center" href="#transparency">Set CM address →</a>
@@ -655,8 +651,8 @@
         <div class="sticky-mint__value" id="stickySelected">—</div>
       </div>
       <div class="sticky-mint__actions">
-        <button id="stickyActionBtn" class="btn-primary btn-sm w-full md:w-auto" type="button">Connect</button>
-        <button id="stickyChangeBtn" class="btn-ghost btn-sm w-full md:w-auto" data-focus="tiers" type="button">Change tier</button>
+        <button id="stickyActionBtn" class="btn-primary btn-sm w-full md:w-auto">Connect</button>
+        <button id="stickyChangeBtn" class="btn-ghost btn-sm w-full md:w-auto" data-focus="tiers">Change tier</button>
       </div>
     </div>
   </div>
@@ -781,7 +777,6 @@
       const hasCM = !!(CANDY_MACHINE_ADDRESS && CANDY_MACHINE_ADDRESS.length > 20);
 
       if(stickyActionBtn){
-        // Variant A: only show Open in Phantom if provider is missing
         if(!providerOk){
           stickyActionBtn.disabled = false;
           stickyActionBtn.textContent = "Open in Phantom";
@@ -789,7 +784,6 @@
           stickyActionBtn.disabled = false;
           stickyActionBtn.textContent = "Connect";
         }else if(hasWallet && !hasCM){
-          // Keep it clickable (no disabled) — just scroll to mint and explain "soon"
           stickyActionBtn.disabled = false;
           stickyActionBtn.textContent = "Mint (soon)";
         }else{
@@ -798,6 +792,7 @@
         }
       }
     }
+
 function flashReady(){
       const el = document.getElementById("tierReady");
       if (!el) return;
@@ -816,26 +811,26 @@ function flashReady(){
       const t = tiers[selected];
       totalEl.textContent = (t.price * qty).toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
     }
-
     // Wallet connect (Phantom/Solflare-compatible + Phantom deep link fallback)
     function getProvider(){
-      // Phantom usually injects window.solana; some environments expose window.phantom.solana
+      // Phantom typically injects window.solana; some environments expose window.phantom.solana
       return window.solana || (window.phantom && window.phantom.solana) || null;
     }
     function phantomDeepLink(){
+      // Universal deep link (iOS + Android)
       return "https://phantom.app/ul/browse/" + encodeURIComponent(window.location.href);
     }
     function hasProvider(){
       const p = getProvider();
-      return !!(p && (typeof p.connect === "function"));
+      return !!(p && typeof p.connect === "function");
     }
     function isWalletConnected(){
       const p = getProvider();
-      return !!(p && p.isConnected);
+      // Some providers set isConnected, some only expose publicKey
+      return !!(p && (p.isConnected || p.publicKey));
     }
 
     function syncConnectCTA(){
-      // Variant A: only show Open in Phantom if provider is missing
       const providerOk = hasProvider();
       const connected = isWalletConnected();
 
@@ -844,11 +839,14 @@ function flashReady(){
         connectBtn.dataset.mode = "phantom";
         disconnectBtn.classList.add("hidden");
         connectBtn.classList.remove("hidden");
+
         walletStatus.textContent = "Phantom not found";
         walletStatus.style.color = "var(--warn)";
         walletAddr.classList.add("hidden");
-        updateHealth();
+
+        updateMintReady();
         updateStickyBar();
+        updateHealth();
         return;
       }
 
@@ -856,6 +854,11 @@ function flashReady(){
       connectBtn.dataset.mode = "connect";
 
       if (connected){
+        const p = getProvider();
+        const pk = p?.publicKey?.toString?.() || "";
+        walletAddr.textContent = pk ? (pk.slice(0,4) + "…" + pk.slice(-4)) : "";
+        walletAddr.classList.toggle("hidden", !pk);
+
         walletStatus.textContent = "Connected";
         walletStatus.style.color = "var(--good)";
         connectBtn.classList.add("hidden");
@@ -863,20 +866,23 @@ function flashReady(){
       } else {
         walletStatus.textContent = "Not connected";
         walletStatus.style.color = "";
+        walletAddr.classList.add("hidden");
         connectBtn.classList.remove("hidden");
         disconnectBtn.classList.add("hidden");
       }
 
-      updateHealth();
+      updateMintReady();
       updateStickyBar();
+      updateHealth();
     }
 
     async function connectWallet(){
-      // If no provider — deep link into Phantom (A)
+      // Variant A: only if Phantom/provider missing → deep link
       if (!hasProvider()){
         window.location.href = phantomDeepLink();
         return;
       }
+
       const provider = getProvider();
       try{
         const res = await provider.connect();
@@ -888,42 +894,32 @@ function flashReady(){
         walletStatus.style.color = "var(--good)";
         connectBtn.classList.add("hidden");
         disconnectBtn.classList.remove("hidden");
+
         updateMintReady();
         updateStickyBar();
-      syncConnectCTA();
-    }catch(e){
+        updateHealth();
+      }catch(e){
         walletStatus.textContent = "Connection rejected";
         walletStatus.style.color = "var(--warn)";
+        updateHealth();
       }
-      updateHealth();
+
+      // Ensure CTAs are consistent
+      syncConnectCTA();
     }
 
     async function disconnectWallet(){
       try{
         await getProvider()?.disconnect?.();
       }catch(e){}
-      walletStatus.textContent = hasProvider() ? "Not connected" : "Phantom not found";
-      walletStatus.style.color = hasProvider() ? "" : "var(--warn)";
-      walletAddr.classList.add("hidden");
-      connectBtn.classList.remove("hidden");
-      disconnectBtn.classList.add("hidden");
-      updateMintReady();
-      updateStickyBar();
-      updateHealth();
-      syncConnectCTA();
-    }
 
-      walletStatus.textContent = "Not connected";
-      walletStatus.style.color = "";
-      walletAddr.classList.add("hidden");
-      connectBtn.classList.remove("hidden");
-      disconnectBtn.classList.add("hidden");
-      updateMintReady();
+      syncConnectCTA();
     }
 
     
     function updateHealth(){
       const hasCM = !!(CANDY_MACHINE_ADDRESS && CANDY_MACHINE_ADDRESS.length > 20);
+      const providerOk = hasProvider();
       const hasWallet = isWalletConnected();
       const isReady = hasCM && hasWallet;
 
@@ -942,6 +938,7 @@ function flashReady(){
 
 function updateMintReady(){
       const hasCM = !!(CANDY_MACHINE_ADDRESS && CANDY_MACHINE_ADDRESS.length > 20);
+      const providerOk = hasProvider();
       const hasWallet = isWalletConnected();
 
       if (hasCM && hasWallet){
@@ -977,6 +974,16 @@ function updateMintReady(){
       updateMintReady();
       updateStickyBar();
     }
+
+    // Wallet events (keep UI in sync)
+    try{
+      const p = getProvider();
+      if (p && typeof p.on === "function"){
+        p.on("connect", syncConnectCTA);
+        p.on("disconnect", syncConnectCTA);
+        p.on("accountChanged", syncConnectCTA);
+      }
+    }catch(_){}
 
     // Events
     tierCards.forEach(c => c.addEventListener("click", () => setTier(c.dataset.tier)));
@@ -1024,11 +1031,11 @@ function updateMintReady(){
         const hasWallet = isWalletConnected();
         const hasCM = !!(CANDY_MACHINE_ADDRESS && CANDY_MACHINE_ADDRESS.length > 20);
 
-        if(!providerOk){
+        if (!providerOk){
           window.location.href = phantomDeepLink();
           return;
         }
-        if(!hasWallet){
+        if (!hasWallet){
           await connectWallet();
           return;
         }
@@ -1036,8 +1043,8 @@ function updateMintReady(){
         // Always bring context first
         document.getElementById("mint")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-        // If CM isn't set yet, don't try to click disabled mint button — just show context.
-        if(!hasCM){
+        // If CM isn't set yet, don't try to click a disabled button — just show context.
+        if (!hasCM){
           return;
         }
 
@@ -1056,6 +1063,8 @@ function updateMintReady(){
 
     // Initial UI
     initConfig();
+    // Wallet UI sync (shows Open in Phantom if missing)
+    syncConnectCTA();
     setTier(selected, { silent: true });
     setQty(1);
   </script>
