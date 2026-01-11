@@ -3,269 +3,679 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TON Fans V2 — Genesis Reboot WL</title>
-  <meta name="description" content="TON Fans V2 — Genesis Reboot WL. OG reboot with 4 coin types and ultra‑rare Diamonds. Pay via CryptoBot and secure your slot." />
-  <meta property="og:title" content="TON Fans V2 — Genesis Reboot WL" />
-  <meta property="og:description" content="OG reboot with 4 coin types and ultra‑rare Diamonds. WL via CryptoBot." />
+  <title>TON Fans — Mint on Solana</title>
+  <meta name="description" content="TON coin aesthetics, minted on Solana. 1,270 supply. 4 tiers with transparent pricing. Inspired by π." />
+
+  <meta property="og:title" content="TON Fans — Mint on Solana" />
+  <meta property="og:description" content="TON coin aesthetics, minted on Solana. 1,270 supply. 4 tiers. Inspired by π." />
   <meta property="og:image" content="static/og.png" />
   <meta property="og:type" content="website" />
-  <link rel="icon" href="https://ton.org/download/brand-assets/ton_symbol.svg">
+  <meta property="og:url" content="" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="TON Fans — Mint on Solana" />
+  <meta name="twitter:description" content="TON coin aesthetics, minted on Solana. 1,270 supply. 4 tiers. Inspired by π." />
+  <meta name="twitter:image" content="static/og.png" />
+
+  <link rel="icon" href="static/ton.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
   <style>
-    :root{--ton:#0098EA;--ton2:#00C1FF;--bg:#0B1220}
-    body{font-family:'Inter',sans-serif;}
-    .glass{backdrop-filter:saturate(180%) blur(10px); background:rgba(255,255,255,.06);}
-    .grid-auto{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}
-    .btn-ton{position:relative;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.75rem 1rem;border-radius:.75rem;font-weight:600;color:#0B0B0B;box-shadow:0 0 0 rgba(0,193,255,0);transition:box-shadow .25s ease, transform .15s ease}
-    .btn-ton::before{content:"";position:absolute;inset:0;border-radius:inherit;z-index:-1;background:
-      radial-gradient(120% 140% at 30% 30%, rgba(0,193,255,.35) 0%, rgba(0,152,234,.25) 35%, rgba(0,152,234,.15) 60%, rgba(0,152,234,0) 70%),
-      linear-gradient(180deg,var(--ton),var(--ton2));}
-    .btn-ton > *{position:relative;z-index:1}
-    .btn-ton:hover{box-shadow:0 0 24px rgba(0,193,255,.45);transform:translateY(-1px)}
-    .btn-ton:focus{outline:none;box-shadow:0 0 0 3px rgba(0,152,234,.6),0 0 16px rgba(0,193,255,.6)}
-    .btn-outline{border:1px solid rgba(255,255,255,.15);border-radius:.75rem;padding:.75rem 1rem}
-    .btn-outline:hover{border-color:rgba(255,255,255,.3)}
-    .card{transition:box-shadow .3s ease, transform .3s ease}
-    .card:hover{box-shadow:0 0 20px rgba(0,152,234,.4);transform:translateY(-2px)}
-    .card-diamond{box-shadow:0 0 20px rgba(0,193,255,.5),0 0 40px rgba(0,152,234,.3);border-color:var(--ton)}
-    /* Hero image glow */
-    .hero-img{box-shadow:0 0 32px rgba(0,152,234,.4),0 0 64px rgba(0,193,255,.25)}
+    :root{
+      --bg:#070A12;
+      --card:rgba(255,255,255,.055);
+      --stroke:rgba(255,255,255,.10);
+      --ton:#0098EA;
+      --ton2:#00C1FF;
+      --good:rgba(16,185,129,.9);
+      --warn:rgba(245,158,11,.95);
+    }
+    body{font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);}
+    .glass{backdrop-filter:saturate(180%) blur(12px); background:rgba(255,255,255,.045);}
+    .hairline{border:1px solid var(--stroke);}
+    .btn-primary{
+      position:relative;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+      padding:.78rem 1.05rem;border-radius:1rem;font-weight:700;color:#071016;
+      transition:transform .15s ease, box-shadow .25s ease, filter .25s ease;
+    }
+    .btn-primary::before{
+      content:"";position:absolute;inset:0;border-radius:inherit;z-index:-1;
+      background:
+        radial-gradient(120% 140% at 30% 30%, rgba(0,193,255,.35) 0%, rgba(0,152,234,.22) 40%, rgba(0,152,234,0) 75%),
+        linear-gradient(180deg,var(--ton),var(--ton2));
+    }
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 0 28px rgba(0,193,255,.25);}
+    .btn-primary:active{transform:translateY(0px);filter:saturate(1.1);}
+    .btn-ghost{
+      display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+      padding:.78rem 1.05rem;border-radius:1rem;font-weight:700;
+      border:1px solid rgba(255,255,255,.14);
+      transition:border-color .2s ease, transform .15s ease, background .2s ease;
+    }
+    .btn-ghost:hover{border-color:rgba(255,255,255,.24);background:rgba(255,255,255,.03);transform:translateY(-1px);}
+    .pill{
+      display:inline-flex;align-items:center;gap:.5rem;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.03);
+      border-radius:9999px;padding:.38rem .62rem;font-size:.78rem;color:rgba(255,255,255,.78);
+    }
+    .card{
+      background:var(--card);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:1.25rem;
+    }
+    .card:hover{border-color:rgba(255,255,255,.18);}
+    .soft-glow{
+      box-shadow:0 0 0 1px rgba(255,255,255,.04), 0 20px 80px rgba(0,193,255,.12);
+    }
+    .kbd{
+      font-size:.72rem;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.04);
+      border-radius:.55rem;
+      padding:.2rem .45rem;
+      color:rgba(255,255,255,.8);
+    }
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+    .muted{color:rgba(255,255,255,.72);}
+    .muted2{color:rgba(255,255,255,.58);}
+    .accent{color:var(--ton2);}
+    .grad-text{
+      background:linear-gradient(90deg, rgba(0,193,255,1) 0%, rgba(0,152,234,1) 40%, rgba(160,225,255,.9) 100%);
+      -webkit-background-clip:text;background-clip:text;color:transparent;
+    }
+    .anchor{scroll-margin-top:92px;}
+    .tier-selected{border-color:rgba(0,193,255,.55) !important; box-shadow:0 0 0 1px rgba(0,193,255,.25), 0 24px 80px rgba(0,193,255,.10);}
+    .tier-badge{
+      background:rgba(0,193,255,.10);
+      border:1px solid rgba(0,193,255,.25);
+      color:rgba(220,248,255,.95);
+      padding:.25rem .55rem;border-radius:9999px;font-size:.75rem;font-weight:700;
+    }
   </style>
 </head>
-<body class="bg-[var(--bg)] text-zinc-100">
+
+<body class="text-zinc-100">
   <!-- NAV -->
-  <header class="sticky top-0 z-40 glass border-b border-white/10">
+  <header class="sticky top-0 z-50 glass border-b border-white/10">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-[#0098EA]/20 grid place-items-center"><img src="https://ton.org/download/brand-assets/ton_symbol.svg" alt="TON" class="w-5 h-5"/></div>
-        <span class="font-semibold tracking-wide">TON Fans V2 — Genesis Reboot</span>
-      </div>
-      <nav class="hidden sm:flex items-center gap-4 text-sm">
-        <a href="#tiers" class="hover:text-[#00C1FF]">WL Tiers</a>
-        <a href="#about" class="hover:text-[#00C1FF]">Story</a>
-        <a href="#gallery" class="hover:text-[#00C1FF]">Gallery</a>
-        <a href="#faq" class="hover:text-[#00C1FF]">FAQ</a>
-        <a href="#leaders" class="hover:text-[#00C1FF]">Leaders</a>
+      <a href="#" class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
+          <img src="static/ton.png" alt="TON" class="w-5 h-5"/>
+        </div>
+        <div class="leading-tight">
+          <div class="font-semibold tracking-wide">TON Fans</div>
+          <div class="text-xs muted2">Mint on Solana</div>
+        </div>
+      </a>
+
+      <nav class="hidden md:flex items-center gap-5 text-sm muted">
+        <a href="#tiers" class="hover:text-white">Tiers</a>
+        <a href="#transparency" class="hover:text-white">Transparency</a>
+        <a href="#gallery" class="hover:text-white">Gallery</a>
+        <a href="#faq" class="hover:text-white">FAQ</a>
       </nav>
-      <a href="#tiers" class="btn-ton px-4 py-2 rounded-xl">Join WL<span>→</span></a>
+
+      <div class="flex items-center gap-2">
+        <a class="btn-ghost hidden sm:inline-flex" href="https://x.com/ton_fans" target="_blank" rel="noreferrer">X</a>
+        <a class="btn-primary" href="#mint">Mint</a>
+      </div>
     </div>
   </header>
 
   <!-- HERO -->
   <section class="relative overflow-hidden">
-    <div class="absolute inset-0 bg-gradient-to-b from-[#0098EA]/20 via-[#00C1FF]/10 to-transparent"></div>
-    <div class="max-w-6xl mx-auto px-4 py-16 md:py-24 grid md:grid-cols-2 gap-10 items-center">
+    <div class="absolute inset-0">
+      <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-[900px] h-[900px] rounded-full blur-3xl opacity-40"
+           style="background:radial-gradient(circle at 30% 30%, rgba(0,193,255,.35), rgba(0,152,234,.18), rgba(0,0,0,0));"></div>
+      <div class="absolute inset-0 bg-gradient-to-b from-white/[.02] via-transparent to-transparent"></div>
+    </div>
+
+    <div class="max-w-6xl mx-auto px-4 pt-14 pb-12 md:pt-20 md:pb-16 grid md:grid-cols-2 gap-10 items-center relative">
       <div>
-        <h1 class="text-3xl md:text-5xl font-extrabold leading-tight">TON Fans V2  Genesis Reboot WL</h1>
-        <p class="mt-4 text-zinc-300">V1 was a beta. V2 is 🔥. 4 coin types. Ultra‑rare Diamonds (270 total). Pay via CryptoBot and secure your OG slot.</p>
-        <div class="mt-6 flex gap-3">
-          <a href="#tiers" class="btn-ton px-5 py-3 rounded-xl">Join Whitelist</a>
-          <a href="https://twitter.com/ton_fans" target="_blank" class="btn-outline">X / Twitter</a>
+        <div class="flex flex-wrap gap-2">
+          <span class="pill">1,270 supply</span>
+          <span class="pill">4 tiers</span>
+          <span class="pill">Big Diamond: 85 only</span>
+          <span class="pill">Royalties: 5%</span>
         </div>
+
+        <h1 class="mt-5 text-4xl md:text-6xl font-extrabold leading-[1.02]">
+          TON coin aesthetics,<br />
+          <span class="grad-text">minted on Solana.</span>
+        </h1>
+
+        <p class="mt-5 text-lg md:text-xl muted max-w-xl">
+          A coin collection inspired by <span class="font-semibold text-white">π</span> — infinite geometry for an open network.
+          Four tiers. Clear pricing. Transparent addresses.
+        </p>
+
+        <div class="mt-7 flex flex-wrap gap-3">
+          <a href="#mint" class="btn-primary px-6">Mint now</a>
+          <a href="#tiers" class="btn-ghost px-6">View tiers</a>
+        </div>
+
+        <p class="mt-4 text-sm muted2">
+          Not affiliated with TON Foundation or Telegram. Fan-made, design-inspired.
+        </p>
       </div>
+
       <div class="relative">
-        <img src="static/hero.png" alt="TON Fans V2" class="rounded-2xl ring-1 ring-white/10 hero-img"/>
+        <div class="card soft-glow p-3">
+          <img src="static/hero.png" alt="TON Fans coin" class="rounded-2xl w-full ring-1 ring-white/10" />
+        </div>
+
+        <div class="mt-4 grid grid-cols-2 gap-3">
+          <div class="card p-4">
+            <div class="text-xs uppercase tracking-[.2em] muted2">Chain</div>
+            <div class="mt-1 font-semibold">Solana</div>
+          </div>
+          <div class="card p-4">
+            <div class="text-xs uppercase tracking-[.2em] muted2">Story</div>
+            <div class="mt-1 font-semibold">Inspired by π</div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- PROPAGANDA BANNER -->
-<section id="propaganda-banner" class="relative text-center py-20">
-  <div class="max-w-5xl mx-auto">
-    <!-- Заголовок -->
-    <h2 class="text-3xl md:text-5xl font-extrabold leading-tight">THE TON PROPAGANDA MACHINE</h2>
-    <p class="mt-4 text-lg text-zinc-300">One mint to rule them all. We start in TON. We echo in Ethereum. We invade Solana.</p>
-
-    <!-- Баннер -->
-    <div class="mt-10">
-      <img src="static/propaganda.png" 
-           alt="The Propaganda Machine is Warming Up" 
-           class="mx-auto rounded-2xl shadow-2xl ring-1 ring-white/10"/>
-    </div>
-  </div>
-</section>
-  
-<!-- PROPAGANDA MANIFEST -->
-<section id="manifest" class="max-w-4xl mx-auto px-4 py-20 text-center">
-  <p class="text-2xl md:text-3xl font-extrabold text-[#00C1FF]">
-    One mint to rule them all.
-  </p>
-  <p class="mt-6 text-lg md:text-xl text-zinc-300 leading-relaxed">
-    We start in TON. We echo in Ethereum. We invade Solana.<br/>
-    This is not just an NFT — it’s a cross-chain movement.
-  </p>
-  <p class="mt-6 text-zinc-400 italic text-lg">
-    Your TON NFT is the genesis key. The rest is inevitable.
-  </p>
-</section>
-
-  <!-- STATS -->
-  <section id="about" class="max-w-6xl mx-auto px-4 py-10 grid grid-auto gap-6">
-    <div class="p-5 rounded-2xl border border-white/10 bg-white/5 card">
-      <div class="text-3xl font-bold">4</div>
-      <div class="text-sm text-zinc-400">Coin types</div>
-    </div>
-    <div class="p-5 rounded-2xl border border-white/10 bg-white/5 card">
-      <div class="text-3xl font-bold">270</div>
-      <div class="text-sm text-zinc-400">Diamonds total</div>
-    </div>
-    <div class="p-5 rounded-2xl border border-white/10 bg-white/5 card">
-      <div class="text-3xl font-bold">1000+</div>
-      <div class="text-sm text-zinc-400">GEN supply</div>
-    </div>
-    <div class="p-5 rounded-2xl border border-white/10 bg-white/5 card">
-      <div class="text-3xl font-bold">CryptoBot</div>
-      <div class="text-sm text-zinc-400">Secure payments</div>
-    </div>
-  </section>
-
-  <!-- CROSS-CHAIN MISSION -->
-  <section id="crosschain" class="max-w-6xl mx-auto px-4 py-14">
-    <div class="rounded-2xl border border-white/10 bg-white/5 p-6 md:p-10 card">
-      <div class="text-xs uppercase tracking-[.2em] text-[#00C1FF]">Mission</div>
-      <h2 class="mt-2 text-3xl md:text-4xl font-extrabold">ONE MINT. THREE CHAINS.</h2>
-      <p class="mt-3 text-zinc-300 max-w-3xl">Mint once on <span class="font-semibold" style="color:var(--ton)">TON</span>. Claim benefits across ecosystems. Holders of the TON Genesis NFT get <span class="font-semibold">future airdrops on Ethereum & Solana</span> — no extra cost for you. We expand when the community is ready.</p>
-
-      <!-- Logos / chips -->
-      <div class="mt-6 flex flex-wrap items-center gap-6 text-sm">
-        <div class="flex items-center gap-2 bg-[#0098EA]/15 ring-1 ring-[#0098EA]/40 px-3 py-2 rounded-full">
-          <img src="./static/ton.png" alt="TON" class="w-5 h-5"/>
-          <span>TON — genesis mint</span>
+  <!-- PI STORY -->
+  <section class="max-w-6xl mx-auto px-4 pb-6">
+    <div class="card p-6 md:p-10">
+      <div class="text-xs uppercase tracking-[.2em] accent">Built on π</div>
+      <h2 class="mt-2 text-2xl md:text-3xl font-extrabold">Inspired by Pi. Designed for an open network.</h2>
+      <p class="mt-3 muted max-w-3xl">
+        The rays aren’t random — they’re a visual nod to <span class="text-white font-semibold">π (Pi)</span>, the infinite constant behind every perfect circle.
+        Not a claim of provable encoding — just a clean inspiration: <span class="text-white">infinity</span>, <span class="text-white">precision</span>, <span class="text-white">balance</span>.
+      </p>
+      <div class="mt-6 grid md:grid-cols-3 gap-4">
+        <div class="card p-5">
+          <div class="tier-badge">Infinity</div>
+          <p class="mt-2 muted">π never ends — like the expansion of an open network.</p>
         </div>
-        <div class="flex items-center gap-2 bg-white/5 ring-1 ring-white/10 px-3 py-2 rounded-full">
-          <img src="./static/eth.png" alt="ETH" class="w-5 h-5"/>
-          <span>Ethereum — echo airdrop</span>
+        <div class="card p-5">
+          <div class="tier-badge">Precision</div>
+          <p class="mt-2 muted">Crypto is math. This collection celebrates clean geometry.</p>
         </div>
-        <div class="flex items-center gap-2 bg-white/5 ring-1 ring-white/10 px-3 py-2 rounded-full">
-          <img src="./static/sol.png" alt="SOL" class="w-5 h-5"/>
-          <span>Solana — echo airdrop</span>
+        <div class="card p-5">
+          <div class="tier-badge">Connection</div>
+          <p class="mt-2 muted">Radial symmetry reads as “network energy” — instantly recognizable.</p>
         </div>
-      </div>
-
-      <!-- Timeline -->
-      <div class="mt-8 grid md:grid-cols-3 gap-6">
-        <div class="p-5 rounded-xl border border-white/10 bg-white/5">
-          <div class="text-xs tracking-widest text-zinc-400">Phase 1</div>
-          <div class="mt-1 font-semibold">TON Mint</div>
-          <p class="mt-2 text-zinc-300 text-sm">WL via CryptoBot → mint TON Genesis NFT. Snapshot of holders for future cross-chain drops.</p>
-        </div>
-        <div class="p-5 rounded-xl border border-white/10 bg-white/5">
-          <div class="text-xs tracking-widest text-zinc-400">Phase 2</div>
-          <div class="mt-1 font-semibold">Ethereum Echo</div>
-          <p class="mt-2 text-zinc-300 text-sm">Conditional airdrop to TON holders. No payment needed from you. Funded by royalties & traction.</p>
-        </div>
-        <div class="p-5 rounded-xl border border-white/10 bg-white/5">
-          <div class="text-xs tracking-widest text-zinc-400">Phase 3</div>
-          <div class="mt-1 font-semibold">Solana Echo</div>
-          <p class="mt-2 text-zinc-300 text-sm">Second cross-chain echo. Same rules: snapshot → airdrop to verified TON holders.</p>
-        </div>
-      </div>
-
-      <div class="mt-8 flex flex-wrap items-center gap-3">
-        <a href="#tiers" class="btn-ton px-5 py-3 rounded-xl">Join TON WL</a>
-        <span class="text-sm text-zinc-400">No extra cost for ETH/SOL echo drops. Timing announced via Leaders channel.</span>
       </div>
     </div>
   </section>
 
   <!-- TIERS -->
-  <section id="tiers" class="max-w-6xl mx-auto px-4 py-14">
-    <h2 class="text-2xl md:text-3xl font-extrabold">Whitelist tiers</h2>
-    <p class="mt-2 text-zinc-300">Choose your access. Payments are handled by @CryptoBot. Slots are limited and tracked publicly.</p>
+  <section id="tiers" class="anchor max-w-6xl mx-auto px-4 py-10">
+    <div class="flex items-end justify-between gap-6 flex-wrap">
+      <div>
+        <div class="text-xs uppercase tracking-[.2em] accent">Tiers</div>
+        <h2 class="mt-2 text-2xl md:text-4xl font-extrabold">Choose your tier.</h2>
+        <p class="mt-2 muted max-w-2xl">Simple pricing. Fixed supply. Clear visual rarity. Select a tier — the Mint module will use the matching guard group.</p>
+      </div>
+      <a href="#mint" class="btn-ghost">Go to Mint →</a>
+    </div>
 
-    <div class="mt-8 grid md:grid-cols-3 gap-6">
-      <!-- OG -->
-      <div class="p-6 rounded-2xl border border-white/10 bg-white/5 flex flex-col card">
-        <div class="text-sm uppercase tracking-widest text-zinc-400">OG WL</div>
-        <div class="mt-2 text-3xl font-extrabold">5 TON</div>
-        <ul class="mt-4 text-sm space-y-2 text-zinc-300">
-          <li>Guaranteed GEN airdrop</li>
-          <li>OG chat access</li>
-          <li>Hall of Fame: you are always listed as an old OG</li>
+    <div class="mt-8 grid md:grid-cols-2 gap-6">
+      <!-- LittlGEN -->
+      <button class="text-left card p-6 tier-card" data-tier="littlegen">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="text-sm uppercase tracking-widest muted2">LittlGEN</div>
+            <div class="mt-1 text-3xl font-extrabold">0.10 SOL</div>
+            <div class="mt-1 text-sm muted2">Supply: 500</div>
+          </div>
+          <img src="static/sample3.png" alt="LittlGEN sample" class="w-24 h-24 rounded-xl ring-1 ring-white/10 object-cover"/>
+        </div>
+        <ul class="mt-5 space-y-2 text-sm muted">
+          <li>Clean silver tone</li>
+          <li>Same core identity</li>
+          <li>Best entry tier</li>
         </ul>
-        <a href="https://send.tg/pay?start=invoice_OG" target="_blank" class="mt-6 btn-ton px-4 py-3 rounded-xl">Pay 5 TON</a>
-        <div class="mt-3 text-xs text-zinc-400">Slots left: <span id="og-left">70</span></div>
+        <div class="mt-5 flex items-center gap-2 text-sm">
+          <span class="tier-badge">Guard: littlegen</span>
+          <span class="muted2">Select to mint</span>
+        </div>
+      </button>
+
+      <!-- BigGEN -->
+      <button class="text-left card p-6 tier-card" data-tier="biggen">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="text-sm uppercase tracking-widest muted2">BigGEN</div>
+            <div class="mt-1 text-3xl font-extrabold">0.125 SOL</div>
+            <div class="mt-1 text-sm muted2">Supply: 500</div>
+          </div>
+          <img src="static/sample1.png" alt="BigGEN sample" class="w-24 h-24 rounded-xl ring-1 ring-white/10 object-cover"/>
+        </div>
+        <ul class="mt-5 space-y-2 text-sm muted">
+          <li>Bigger presence</li>
+          <li>More “coin” feel</li>
+          <li>Collector favorite</li>
+        </ul>
+        <div class="mt-5 flex items-center gap-2 text-sm">
+          <span class="tier-badge">Guard: biggen</span>
+          <span class="muted2">Select to mint</span>
+        </div>
+      </button>
+
+      <!-- LittlGENdiamond -->
+      <button class="text-left card p-6 tier-card" data-tier="littlegen_diamond">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="text-sm uppercase tracking-widest muted2">LittlGEN Diamond</div>
+            <div class="mt-1 text-3xl font-extrabold">0.15 SOL</div>
+            <div class="mt-1 text-sm muted2">Supply: 185</div>
+          </div>
+          <img src="static/sample2.png" alt="LittlGEN Diamond sample" class="w-24 h-24 rounded-xl ring-1 ring-white/10 object-cover"/>
+        </div>
+        <ul class="mt-5 space-y-2 text-sm muted">
+          <li>Crystal ring details</li>
+          <li>Premium center split</li>
+          <li>Visually distinct rarity</li>
+        </ul>
+        <div class="mt-5 flex items-center gap-2 text-sm">
+          <span class="tier-badge">Guard: littlegen_diamond</span>
+          <span class="muted2">Select to mint</span>
+        </div>
+      </button>
+
+      <!-- BigGENdiamond -->
+      <button class="text-left card p-6 tier-card" data-tier="biggen_diamond">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <div class="text-sm uppercase tracking-widest muted2">BigGEN Diamond</div>
+              <span class="tier-badge">85 only</span>
+            </div>
+            <div class="mt-1 text-3xl font-extrabold">0.20 SOL</div>
+            <div class="mt-1 text-sm muted2">Supply: 85</div>
+          </div>
+          <img src="static/sample4.png" alt="BigGEN Diamond sample" class="w-24 h-24 rounded-xl ring-1 ring-white/10 object-cover"/>
+        </div>
+        <ul class="mt-5 space-y-2 text-sm muted">
+          <li>Flagship tier</li>
+          <li>Most premium look</li>
+          <li>Scarcity you can explain in one sentence</li>
+        </ul>
+        <div class="mt-5 flex items-center gap-2 text-sm">
+          <span class="tier-badge">Guard: biggen_diamond</span>
+          <span class="muted2">Select to mint</span>
+        </div>
+      </button>
+    </div>
+  </section>
+
+  <!-- TRANSPARENCY -->
+  <section id="transparency" class="anchor max-w-6xl mx-auto px-4 py-10">
+    <div class="card p-6 md:p-10">
+      <div class="text-xs uppercase tracking-[.2em] accent">Transparency</div>
+      <h2 class="mt-2 text-2xl md:text-3xl font-extrabold">Show the data.</h2>
+      <p class="mt-3 muted max-w-3xl">Addresses and numbers will be pinned here the moment Candy Machine is deployed. No mystery boxes.</p>
+
+      <div class="mt-7 grid md:grid-cols-2 gap-4">
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-widest muted2">Total supply</div>
+          <div class="mt-1 text-2xl font-extrabold">1,270</div>
+          <div class="mt-2 text-sm muted2">Royalties: 5%</div>
+        </div>
+
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-widest muted2">Guard groups (prices)</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
+            <div class="pill"><span class="mono">littlegen</span> · 0.10</div>
+            <div class="pill"><span class="mono">biggen</span> · 0.125</div>
+            <div class="pill"><span class="mono">littlegen_diamond</span> · 0.15</div>
+            <div class="pill"><span class="mono">biggen_diamond</span> · 0.20</div>
+          </div>
+        </div>
+
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-widest muted2">Candy Machine</div>
+          <div class="mt-2 flex items-center gap-2">
+            <span id="cmAddress" class="mono text-sm text-white/90">TBD</span>
+            <button class="btn-ghost text-sm py-2 px-3" data-copy="cmAddress">Copy</button>
+          </div>
+          <div class="mt-2 text-xs muted2">Will link to Solana Explorer once deployed.</div>
+        </div>
+
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-widest muted2">Treasury wallet</div>
+          <div class="mt-2 flex items-center gap-2">
+            <span id="treasuryAddress" class="mono text-sm text-white/90">TBD</span>
+            <button class="btn-ghost text-sm py-2 px-3" data-copy="treasuryAddress">Copy</button>
+          </div>
+          <div class="mt-2 text-xs muted2">All mint proceeds go here.</div>
+        </div>
       </div>
 
-      <!-- DIAMOND -->
-      <div class="p-6 rounded-2xl border border-[#0098EA]/40 bg-[#0098EA]/5 flex flex-col card card-diamond">
-        <div class="text-sm uppercase tracking-widest text-[#00C1FF]">Diamond WL</div>
-        <div class="mt-2 text-3xl font-extrabold">12 TON</div>
-        <ul class="mt-4 text-sm space-y-2 text-zinc-300">
-          <li>Guaranteed Diamond airdrop</li>
-          <li>VIP role in Leaders</li>
-          <li>Eternal OG status</li>
-        </ul>
-        <a href="https://send.tg/pay?start=invoice_DIAMOND" target="_blank" class="mt-6 btn-ton px-4 py-3 rounded-xl">Pay 12 TON</a>
-        <div class="mt-3 text-xs text-zinc-400">Slots left: <span id="diamond-left">50</span></div>
-      </div>
-
-      <!-- ULTRA -->
-      <div class="p-6 rounded-2xl border border-white/10 bg-white/5 flex flex-col card">
-        <div class="text-sm uppercase tracking-widest text-zinc-400">Ultra WL</div>
-        <div class="mt-2 text-3xl font-extrabold">20 TON</div>
-        <ul class="mt-4 text-sm space-y-2 text-zinc-300">
-          <li>Diamond + bonus GEN</li>
-          <li>VIP channel with sneak secrets & alpha leaks</li>
-          <li>Lifetime WL on next drops</li>
-        </ul>
-        <a href="https://send.tg/pay?start=invoice_ULTRA" target="_blank" class="mt-6 btn-ton px-4 py-3 rounded-xl">Pay 20 TON</a>
-        <div class="mt-3 text-xs text-zinc-400">Slots left: <span id="ultra-left">15</span></div>
+      <div class="mt-6 flex flex-wrap items-center gap-3">
+        <a id="explorerLink" href="#" class="btn-ghost" target="_blank" rel="noreferrer">Explorer</a>
+        <a href="https://x.com/ton_fans" class="btn-ghost" target="_blank" rel="noreferrer">Updates on X</a>
+        <span class="text-xs muted2">Tip: pin this section in announcements for trust.</span>
       </div>
     </div>
   </section>
 
   <!-- GALLERY -->
-  <section id="gallery" class="max-w-6xl mx-auto px-4 py-14">
-    <h2 class="text-2xl md:text-3xl font-extrabold">Preview</h2>
-    <p class="mt-2 text-zinc-300">A few samples from BigGEN / LittlGEN and Diamond variants.</p>
-    <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-      <img class="rounded-xl ring-1 ring-white/10 card" src="static/sample1.png" alt="coin"/>
-      <img class="rounded-xl ring-1 ring-white/10 card" src="static/sample2.png" alt="coin"/>
-      <img class="rounded-xl ring-1 ring-white/10 card" src="static/sample3.png" alt="coin"/>
-      <img class="rounded-xl ring-1 ring-white/10 card" src="static/sample4.png" alt="coin"/>
+  <section id="gallery" class="anchor max-w-6xl mx-auto px-4 py-10">
+    <div class="flex items-end justify-between gap-6 flex-wrap">
+      <div>
+        <div class="text-xs uppercase tracking-[.2em] accent">Gallery</div>
+        <h2 class="mt-2 text-2xl md:text-4xl font-extrabold">Four tiers. One identity.</h2>
+        <p class="mt-2 muted max-w-2xl">A few real samples. Diamond tiers are visually obvious — that’s the point.</p>
+      </div>
+    </div>
+
+    <div class="mt-8 grid md:grid-cols-4 gap-4">
+      <img class="rounded-2xl ring-1 ring-white/10 card" src="static/sample3.png" alt="LittlGEN sample" />
+      <img class="rounded-2xl ring-1 ring-white/10 card" src="static/sample1.png" alt="BigGEN sample" />
+      <img class="rounded-2xl ring-1 ring-white/10 card" src="static/sample2.png" alt="LittlGEN Diamond sample" />
+      <img class="rounded-2xl ring-1 ring-white/10 card" src="static/sample4.png" alt="BigGEN Diamond sample" />
     </div>
   </section>
 
-  <!-- LEADERS / FEED -->
-  <section id="leaders" class="max-w-6xl mx-auto px-4 py-14">
-    <h2 class="text-2xl md:text-3xl font-extrabold">WL Leaders (live)</h2>
-    <p class="mt-2 text-zinc-300">Public transparency. Every slot claimed is announced here.</p>
-    <div class="mt-6 p-6 rounded-2xl border border-white/10 bg-white/5 text-sm text-zinc-300 card">
-      <p>🎉 @username just secured a Diamond WL spot! Rank: #12/50</p>
-      <p class="mt-2">Progress: <span class="inline-block align-middle w-48 h-2 bg-white/10 rounded-full overflow-hidden"><span id="progress-bar" class="block h-full" style="width:24%;background:linear-gradient(90deg,var(--ton),var(--ton2))"></span></span> <span id="progress-text">12/50</span></p>
+  <!-- MINT MODULE -->
+  <section id="mint" class="anchor max-w-6xl mx-auto px-4 py-14">
+    <div class="card p-6 md:p-10">
+      <div class="flex items-start justify-between gap-6 flex-wrap">
+        <div>
+          <div class="text-xs uppercase tracking-[.2em] accent">Mint</div>
+          <h2 class="mt-2 text-2xl md:text-4xl font-extrabold">One click. No confusion.</h2>
+          <p class="mt-2 muted max-w-2xl">
+            Select a tier, connect your wallet, mint.
+            The mint button will be enabled once the Candy Machine address is set.
+          </p>
+        </div>
+        <div class="text-right">
+          <div class="text-xs uppercase tracking-widest muted2">Selected tier</div>
+          <div id="selectedTierLabel" class="mt-1 text-lg font-semibold">LittlGEN</div>
+          <div id="selectedTierMeta" class="mt-1 text-sm muted2 mono">guard: littlegen</div>
+        </div>
+      </div>
+
+      <div class="mt-8 grid md:grid-cols-3 gap-4">
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-widest muted2">Wallet</div>
+          <div class="mt-2 flex items-center gap-2">
+            <span id="walletStatus" class="text-sm muted">Not connected</span>
+            <span id="walletAddr" class="mono text-sm text-white/90 hidden"></span>
+          </div>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button id="connectBtn" class="btn-primary w-full md:w-auto">Connect Wallet</button>
+            <button id="disconnectBtn" class="btn-ghost w-full md:w-auto hidden">Disconnect</button>
+          </div>
+          <div class="mt-3 text-xs muted2">Phantom recommended. Solflare also works if it exposes window.solana.</div>
+        </div>
+
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-widest muted2">Quantity</div>
+          <div class="mt-3 flex items-center gap-2">
+            <button id="qtyMinus" class="btn-ghost px-4">−</button>
+            <div class="px-5 py-3 rounded-xl border border-white/10 bg-white/5 text-lg font-semibold" id="qty">1</div>
+            <button id="qtyPlus" class="btn-ghost px-4">+</button>
+          </div>
+          <div class="mt-2 text-xs muted2">Mint limit is enforced by Candy Guard (recommended: 3 per wallet).</div>
+        </div>
+
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-widest muted2">Price</div>
+          <div class="mt-2 text-3xl font-extrabold"><span id="price">0.10</span> SOL</div>
+          <div class="mt-2 text-sm muted2">Estimated total: <span class="mono" id="total">0.10</span> SOL</div>
+
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button id="mintBtn" class="btn-primary w-full" disabled style="opacity:.55; cursor:not-allowed;">
+              Mint now
+            </button>
+            <a id="mintHelp" class="btn-ghost w-full text-center" href="#transparency">Set CM address →</a>
+          </div>
+
+          <div id="mintHint" class="mt-3 text-xs muted2">
+            Status: waiting for Candy Machine deployment.
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-8 card p-5">
+        <div class="text-xs uppercase tracking-widest muted2">After mint</div>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <a id="shareX" class="btn-ghost" target="_blank" rel="noreferrer">Share on X</a>
+          <span class="text-sm muted2">Celebration moment + explorer link will appear here after mint integration.</span>
+        </div>
+      </div>
     </div>
   </section>
 
   <!-- FAQ -->
-  <section id="faq" class="max-w-6xl mx-auto px-4 py-14">
-    <h2 class="text-2xl md:text-3xl font-extrabold">FAQ</h2>
-    <div class="mt-6 grid gap-4">
-      <details class="p-5 rounded-2xl border border-white/10 bg-white/5 card">
-        <summary class="font-semibold cursor-pointer">How do I join WL?</summary>
-        <p class="mt-2 text-zinc-300">Click one of the CryptoBot buttons above, complete the payment, and add your @username in the comment field of the payment. This way your slot is reserved instantly and we can airdrop to you after launch.</p>
-      </details>
-      <details class="p-5 rounded-2xl border border-white/10 bg-white/5 card">
-        <summary class="font-semibold cursor-pointer">When is the mint?</summary>
-        <p class="mt-2 text-zinc-300">The WL is slot-based, not time-limited. Once slots are filled, the collection will be deployed and listed. After listing, NFTs are airdropped to all WL participants according to their tier (OG, Diamond, Ultra).</p>
-      </details>
-      <details class="p-5 rounded-2xl border border-white/10 bg-white/5 card">
-        <summary class="font-semibold cursor-pointer">What do I receive?</summary>
-        <p class="mt-2 text-zinc-300">OG: GEN airdrop. Diamond: guaranteed Diamond airdrop. Ultra: Diamond + bonus GEN + your name forever in Hall of Fame & access to VIP insights channel.</p>
-      </details>
+  <section id="faq" class="anchor max-w-6xl mx-auto px-4 pb-16">
+    <div class="card p-6 md:p-10">
+      <div class="text-xs uppercase tracking-[.2em] accent">FAQ</div>
+      <h2 class="mt-2 text-2xl md:text-3xl font-extrabold">Short answers. No fog.</h2>
+
+      <div class="mt-7 grid md:grid-cols-2 gap-4">
+        <div class="card p-5">
+          <div class="font-semibold">Is this affiliated with TON Foundation / Telegram?</div>
+          <p class="mt-2 muted text-sm">No. This is a fan-made collection inspired by TON aesthetics and the idea of open networks.</p>
+        </div>
+
+        <div class="card p-5">
+          <div class="font-semibold">Where is the mint?</div>
+          <p class="mt-2 muted text-sm">Solana (Metaplex Candy Machine v3).</p>
+        </div>
+
+        <div class="card p-5">
+          <div class="font-semibold">Are the rays mathematically encoded as π digits?</div>
+          <p class="mt-2 muted text-sm">The design is <span class="text-white font-semibold">inspired by π</span> as a symbol of infinity and precision — not a provable encoding claim.</p>
+        </div>
+
+        <div class="card p-5">
+          <div class="font-semibold">What makes Diamond tiers different?</div>
+          <p class="mt-2 muted text-sm">They have clearly visible premium details (crystal ring + center split). Big Diamond is the rarest tier (85 supply).</p>
+        </div>
+
+        <div class="card p-5">
+          <div class="font-semibold">Royalties?</div>
+          <p class="mt-2 muted text-sm">5% secondary royalties.</p>
+        </div>
+
+        <div class="card p-5">
+          <div class="font-semibold">What’s the best tier to mint?</div>
+          <p class="mt-2 muted text-sm">If you want scarcity: Big Diamond. If you want entry: LittlGEN. BigGEN is a strong middle ground.</p>
+        </div>
+      </div>
     </div>
   </section>
 
+  <!-- FOOTER -->
   <footer class="border-t border-white/10">
-    <div class="max-w-6xl mx-auto px-4 py-8 text-sm text-zinc-400 flex flex-col md:flex-row gap-4 items-center justify-between">
-      <div>© TON Fans V2 — Genesis Reboot</div>
-      <div class="flex items-center gap-4">
-        <a href="https://twitter.com/ton_fans" class="hover:text-[#00C1FF]">Twitter</a>
-        <a href="#" class="hover:text-[#00C1FF]">Leaders Channel</a>
-        <a href="#" class="hover:text-[#00C1FF]">Getgems</a>
+    <div class="max-w-6xl mx-auto px-4 py-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div>
+        <div class="font-semibold">TON Fans</div>
+        <div class="text-sm muted2">TON coin aesthetics, minted on Solana. Inspired by π.</div>
+        <div class="mt-2 text-xs muted2">© <span id="year"></span> TON Fans. Fan-made. Not affiliated with TON Foundation or Telegram.</div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <a class="btn-ghost" href="#tiers">Tiers</a>
+        <a class="btn-ghost" href="#mint">Mint</a>
+        <a class="btn-ghost" href="#transparency">Transparency</a>
+        <a class="btn-ghost" href="https://x.com/ton_fans" target="_blank" rel="noreferrer">X</a>
       </div>
     </div>
   </footer>
+
+  <script>
+    // =========================
+    // CONFIG — set these after deploy
+    // =========================
+    // Paste Candy Machine address here after mainnet deploy:
+    const CANDY_MACHINE_ADDRESS = ""; // e.g. "AbC...123"
+    // Paste treasury wallet here (same as config.json guards destinations):
+    const TREASURY_ADDRESS = ""; // e.g. "DeF...456"
+    // Optional: collection page / marketplace link
+    const COLLECTION_LINK = ""; // e.g. "https://magiceden.us/marketplace/..."
+    // =========================
+
+    const tiers = {
+      littlegen: { label: "LittlGEN", price: 0.10, supply: 500, guard: "littlegen" },
+      biggen: { label: "BigGEN", price: 0.125, supply: 500, guard: "biggen" },
+      littlegen_diamond: { label: "LittlGEN Diamond", price: 0.15, supply: 185, guard: "littlegen_diamond" },
+      biggen_diamond: { label: "BigGEN Diamond", price: 0.20, supply: 85, guard: "biggen_diamond" },
+    };
+
+    // State
+    let selected = "littlegen";
+    let qty = 1;
+
+    // Elements
+    const tierCards = document.querySelectorAll(".tier-card");
+    const selectedTierLabel = document.getElementById("selectedTierLabel");
+    const selectedTierMeta = document.getElementById("selectedTierMeta");
+    const priceEl = document.getElementById("price");
+    const totalEl = document.getElementById("total");
+    const qtyEl = document.getElementById("qty");
+    const mintBtn = document.getElementById("mintBtn");
+    const mintHint = document.getElementById("mintHint");
+
+    const walletStatus = document.getElementById("walletStatus");
+    const walletAddr = document.getElementById("walletAddr");
+    const connectBtn = document.getElementById("connectBtn");
+    const disconnectBtn = document.getElementById("disconnectBtn");
+
+    const cmAddress = document.getElementById("cmAddress");
+    const treasuryAddress = document.getElementById("treasuryAddress");
+    const explorerLink = document.getElementById("explorerLink");
+    const shareX = document.getElementById("shareX");
+
+    // Helpers
+    function fmt(n){ return (Math.round(n*1000)/1000).toFixed(n === 0.125 ? 3 : 2).replace(/\.00$/, ".00"); }
+    function setTier(key){
+      selected = key;
+      const t = tiers[selected];
+
+      tierCards.forEach(c => c.classList.toggle("tier-selected", c.dataset.tier === selected));
+      selectedTierLabel.textContent = t.label;
+      selectedTierMeta.textContent = "guard: " + t.guard;
+      priceEl.textContent = t.price.toString();
+      totalEl.textContent = (t.price * qty).toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+
+      const tweet = encodeURIComponent(
+        `the rays aren’t random.\n\ninspired by π — infinite geometry for an open network.\n\nTON coin aesthetics. Solana mint.\n\nTier: ${t.label} (${t.price} SOL)`
+      );
+      shareX.href = "https://x.com/intent/tweet?text=" + tweet;
+    }
+
+    function setQty(next){
+      qty = Math.max(1, Math.min(3, next));
+      qtyEl.textContent = String(qty);
+      const t = tiers[selected];
+      totalEl.textContent = (t.price * qty).toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+    }
+
+    // Copy buttons
+    document.querySelectorAll("[data-copy]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-copy");
+        const el = document.getElementById(id);
+        const text = (el?.textContent || "").trim();
+        if(!text || text === "TBD") return;
+        try{
+          await navigator.clipboard.writeText(text);
+          btn.textContent = "Copied";
+          setTimeout(() => btn.textContent = "Copy", 900);
+        }catch(e){}
+      });
+    });
+
+    // Wallet connect (simple Phantom flow)
+    async function connectWallet(){
+      const provider = window.solana;
+      if(!provider || !provider.isPhantom){
+        walletStatus.textContent = "Phantom not found";
+        walletStatus.style.color = "var(--warn)";
+        return;
+      }
+      try{
+        const res = await provider.connect();
+        const pubkey = res.publicKey?.toString?.() || "";
+        walletAddr.textContent = pubkey ? (pubkey.slice(0,4) + "…" + pubkey.slice(-4)) : "";
+        walletAddr.classList.remove("hidden");
+        walletStatus.textContent = "Connected";
+        walletStatus.style.color = "var(--good)";
+        connectBtn.classList.add("hidden");
+        disconnectBtn.classList.remove("hidden");
+        updateMintReady();
+      }catch(e){
+        walletStatus.textContent = "Connection rejected";
+        walletStatus.style.color = "var(--warn)";
+      }
+    }
+
+    async function disconnectWallet(){
+      try{
+        await window.solana?.disconnect?.();
+      }catch(e){}
+      walletStatus.textContent = "Not connected";
+      walletStatus.style.color = "";
+      walletAddr.classList.add("hidden");
+      connectBtn.classList.remove("hidden");
+      disconnectBtn.classList.add("hidden");
+      updateMintReady();
+    }
+
+    function updateMintReady(){
+      const hasCM = !!(CANDY_MACHINE_ADDRESS && CANDY_MACHINE_ADDRESS.length > 20);
+      const hasWallet = !!(window.solana?.isPhantom && window.solana?.isConnected);
+
+      if (hasCM && hasWallet){
+        mintBtn.disabled = false;
+        mintBtn.style.opacity = "1";
+        mintBtn.style.cursor = "pointer";
+        mintHint.textContent = "Status: ready (mint integration placeholder).";
+      } else {
+        mintBtn.disabled = true;
+        mintBtn.style.opacity = ".55";
+        mintBtn.style.cursor = "not-allowed";
+        mintHint.textContent = hasCM ? "Status: connect wallet to mint." : "Status: waiting for Candy Machine deployment.";
+      }
+    }
+
+    // Init config / links
+    function initConfig(){
+      cmAddress.textContent = CANDY_MACHINE_ADDRESS ? CANDY_MACHINE_ADDRESS : "TBD";
+      treasuryAddress.textContent = TREASURY_ADDRESS ? TREASURY_ADDRESS : "TBD";
+
+      explorerLink.href = CANDY_MACHINE_ADDRESS
+        ? ("https://explorer.solana.com/address/" + CANDY_MACHINE_ADDRESS)
+        : "#";
+
+      if (COLLECTION_LINK){
+        explorerLink.textContent = "Marketplace";
+        explorerLink.href = COLLECTION_LINK;
+      }
+
+      updateMintReady();
+    }
+
+    // Events
+    tierCards.forEach(c => c.addEventListener("click", () => setTier(c.dataset.tier)));
+    document.getElementById("qtyMinus").addEventListener("click", () => setQty(qty - 1));
+    document.getElementById("qtyPlus").addEventListener("click", () => setQty(qty + 1));
+    connectBtn.addEventListener("click", connectWallet);
+    disconnectBtn.addEventListener("click", disconnectWallet);
+
+    mintBtn.addEventListener("click", () => {
+      // Placeholder: actual mint integration comes after CM deploy (we'll wire candy machine mint here).
+      alert("Mint integration will be enabled after Candy Machine deploy. This landing is ready — next step is wiring the on-chain mint.");
+    });
+
+    document.getElementById("year").textContent = new Date().getFullYear();
+
+    // Initial UI
+    initConfig();
+    setTier(selected);
+    setQty(1);
+  </script>
 </body>
 </html>
