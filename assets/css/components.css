@@ -359,3 +359,39 @@ body.has-sticky{
 @media (prefers-reduced-motion: reduce){
   .section-flash::after{ animation:none; opacity:0; }
 }
+
+/* ---------- Selected tier (Mint header) ---------- */
+.selected-tier-card{
+  display: inline-block;
+  max-width: 360px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.03);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.04),
+    0 28px 90px rgba(0,0,0,.35);
+  backdrop-filter: blur(10px);
+}
+.selected-tier-card .muted2{ opacity: .75; }
+
+/* ---------- Mint pills (subtle state cues) ---------- */
+.pill-inline{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: 0.22rem 0.55rem;
+  border-radius: 9999px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+  line-height: 1;
+}
+.pill-inline.warn{
+  background: rgba(245,158,11,.10);
+  border-color: rgba(245,158,11,.18);
+}
+.pill-inline.good{
+  /* very subtle green tint (trust cue) */
+  background: rgba(34,197,94,.10);
+  border-color: rgba(34,197,94,.18);
+}
