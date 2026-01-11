@@ -515,6 +515,7 @@
           <div class="text-xs uppercase tracking-widest muted2">Selected tier</div>
           <div id="selectedTierLabel" class="mt-1 text-lg font-semibold">LittlGEN</div>
           <div id="selectedTierMeta" class="mt-1 text-sm muted2 mono">guard: littlegen</div>
+          <div id="tierReady" class="ready-micro mt-2 text-xs uppercase tracking-[.18em] accent ready-hide">Ready.</div>
         </div>
       </div>
 
@@ -650,6 +651,7 @@
     // State
     let selected = "littlegen";
     let qty = 1;
+    let readyTimer = null;
 
     // Elements
     const tierCards = document.querySelectorAll(".tier-card");
@@ -678,6 +680,22 @@
       const t = tiers[selected];
 
       tierCards.forEach(c => c.classList.toggle("tier-selected", c.dataset.tier === selected));
+
+      // Jobs-level micro feedback: pulse selected tier + softly highlight the Mint module
+      const activeTier = Array.from(tierCards).find(c => c.dataset.tier === selected);
+      if(activeTier){
+        activeTier.classList.add("tier-pulse");
+        setTimeout(() => activeTier.classList.remove("tier-pulse"), 520);
+      }
+      const mintCard = document.querySelector("#mint > div.card");
+      if(mintCard){
+        mintCard.classList.add("mint-focus");
+        setTimeout(() => mintCard.classList.remove("mint-focus"), 720);
+      }
+
+      // Ultra-small Jobs micro-copy: "Ready." (600ms)
+      flashReady();
+
       selectedTierLabel.textContent = t.label;
       selectedTierMeta.textContent = "guard: " + t.guard;
       priceEl.textContent = t.price.toString();
@@ -687,6 +705,18 @@
         `the rays aren’t random.\n\ninspired by π — infinite geometry for an open network.\n\nTON coin aesthetics. Solana mint.\n\nTier: ${t.label} (${t.price} SOL)`
       );
       shareX.href = "https://x.com/intent/tweet?text=" + tweet;
+    }
+
+    function flashReady(){
+      const el = document.getElementById("tierReady");
+      if (!el) return;
+      el.classList.remove("ready-hide");
+      el.classList.add("ready-pop");
+      if (readyTimer) clearTimeout(readyTimer);
+      readyTimer = setTimeout(() => {
+        el.classList.remove("ready-pop");
+        el.classList.add("ready-hide");
+      }, 600);
     }
 
     function setQty(next){
