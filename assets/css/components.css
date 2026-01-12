@@ -409,14 +409,30 @@ body.has-sticky{
 .tier-badge{
   position: relative;
   z-index: 2;
-  border-color: rgba(255,255,255,0.18);
-  background: rgba(255,255,255,0.06);
-}
-
-/* Tier badge: keep border crisp above glow layers (prevents minor outline artefacts on some mobile GPUs) */
-.tier-badge{
-  position: relative;
-  z-index: 2;
   border-color: rgba(255,255,255,.18);
   background: rgba(255,255,255,.07);
+}
+
+/* Ready pill indicator: subtle green dot when wallet connected (Woz-level polish) */
+.pill.ready-yes::before{
+  content:"";
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(16,185,129,.95);
+  box-shadow: 0 0 0 3px rgba(16,185,129,.14);
+  display: inline-block;
+  margin-right: .45rem;
+  animation: dotPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes dotPulse{
+  0%, 100%{
+    transform: scale(1);
+    opacity: .85;
+  }
+  50%{
+    transform: scale(1.18);
+    opacity: 1;
+  }
 }
