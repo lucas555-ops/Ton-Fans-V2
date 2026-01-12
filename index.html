@@ -988,10 +988,17 @@ function flashReady(){
         walletStatus.textContent = "Connection rejected";
         walletStatus.style.color = "var(--warn)";
         updateHealth();
+        // ✅ FIX: Force update after error
+        setTimeout(() => updateHealth(), 50);
       }
 
       // Ensure CTAs are consistent
       syncConnectCTA();
+      // ✅ FIX: Force pills update after connection
+      setTimeout(() => {
+        syncConnectCTA();
+        updateHealth();
+      }, 50);
     }
 
     async function disconnectWallet(){
@@ -1000,6 +1007,8 @@ function flashReady(){
       }catch(e){}
 
       syncConnectCTA();
+      // ✅ FIX: Force pills update on disconnect
+      setTimeout(() => updateHealth(), 50);
     }
 
     
@@ -1165,6 +1174,8 @@ function updateMintReady(){
     autoConnectIfRequested();
     // Wallet UI sync (shows Open in Phantom if missing)
     syncConnectCTA();
+    // ✅ FIX: Ensure status pills are updated on page load
+    setTimeout(() => updateHealth(), 100);
     setTier(selected, { silent: true });
     setQty(1);
   </script>
