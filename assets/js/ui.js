@@ -3,7 +3,7 @@
   - Micro-effects on cards (border glow + glass sweep)
   - Reveal-on-scroll for sections
   - Copy buttons with toast feedback
-*/ 
+*/
 
 (() => {
   const qsa = (sel, root = document) => Array.from(root.querySelectorAll(sel));
