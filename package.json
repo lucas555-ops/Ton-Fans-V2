@@ -1,0 +1,18 @@
+{
+  "name": "tonfans-4cm",
+  "version": "1.0.0",
+  "description": "TON Fans - 4 Candy Machines",
+  "scripts": {
+    "dev": "echo 'Static site - open index.html in browser'",
+    "build": "echo 'No build needed - static files'",
+    "validate-sugar": "echo 'Run: sugar validate --config sugar/cm_lgen_config.json'"
+  },
+  "keywords": [
+    "solana",
+    "nft",
+    "candy-machine",
+    "ton-fans"
+  ],
+  "author": "",
+  "license": "MIT"
+}
