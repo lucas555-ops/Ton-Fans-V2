@@ -60,6 +60,33 @@
       background:rgba(255,255,255,.03);
       border-radius:9999px;padding:.38rem .62rem;font-size:.78rem;color:rgba(255,255,255,.78);
     }
+    .pill.has-dot{position:relative;padding-left:.52rem;}
+    .pill.has-dot::before{
+      content:"";
+      width:8px;height:8px;border-radius:999px;
+      background:rgba(255,255,255,.22);
+      box-shadow:0 0 0 2px rgba(255,255,255,.06);
+      display:inline-block;
+      margin-right:.35rem;
+    }
+    .pill.has-dot.connected::before{
+      background:rgba(0,255,160,.85);
+      box-shadow:0 0 0 2px rgba(0,255,160,.14), 0 0 14px rgba(0,255,160,.45);
+      animation:dotPulse 1.2s ease-in-out infinite;
+    }
+    .pill.has-dot.warn::before{
+      background:rgba(255,205,0,.75);
+      box-shadow:0 0 0 2px rgba(255,205,0,.12), 0 0 14px rgba(255,205,0,.35);
+      animation:dotPulse 1.35s ease-in-out infinite;
+    }
+    .pill.ready-yes{
+      border-color:rgba(0,255,160,.18);
+      background:rgba(0,255,160,.06);
+    }
+    @keyframes dotPulse{
+      0%,100%{transform:scale(1);opacity:.85}
+      50%{transform:scale(1.35);opacity:1}
+    }
     .card{
       background:var(--card);
       border:1px solid rgba(255,255,255,.10);
@@ -93,31 +120,7 @@
       color:rgba(220,248,255,.95);
       padding:.25rem .55rem;border-radius:9999px;font-size:.75rem;font-weight:700;
     }
-  
-/* Subtle status dots on pills (Apple-level) */
-.pills .pill{ position: relative; }
-.pills .pill.connected::before{
-  content: "";
-  width: 6px; height: 6px;
-  border-radius: 999px;
-  display: inline-block;
-  margin-right: 8px;
-  background: var(--good);
-  box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.35);
-  animation: dotPulse 1.4s infinite;
-  transform: translateY(-0.5px);
-}
-@keyframes dotPulse{
-  0%{ box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.28); }
-  70%{ box-shadow: 0 0 0 8px rgba(46, 204, 113, 0.0); }
-  100%{ box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.0); }
-}
-/* extra subtle tint for Ready=Yes */
-.pills .pill.ready-yes{
-  border-color: rgba(46, 204, 113, 0.35);
-  background: rgba(46, 204, 113, 0.06);
-}
-</style>
+  </style>
   <link rel="stylesheet" href="assets/css/components.css" />
 </head>
 
@@ -556,17 +559,7 @@
           <!-- Selected tier (anchored left on desktop) -->
           <div class="selected-tier-card mt-7" aria-live="polite">
             <div class="text-xs uppercase tracking-[.2em] muted2">Selected tier</div>
-            <div id="selectedTierLabel" class="mt-2 flex items-center justify-start gap-2 text-xl font-semibold">
-              <img
-                id="selectedTierThumb"
-                src=""
-                alt=""
-                class="hidden h-7 w-7 rounded-md border border-white/10 bg-white/5 object-cover"
-                loading="lazy"
-                decoding="async"
-              />
-              <span id="selectedTierName">—</span>
-            </div>
+            <div id="selectedTierLabel" class="mt-2 text-xl font-semibold">—</div>
             <div id="selectedTierMeta" class="mt-2 monospace muted text-sm">guard: —</div>
             <div id="tierReady" class="ready-micro mt-2 text-xs uppercase tracking-[.18em] accent ready-hide">Ready.</div>
           </div>
@@ -575,8 +568,8 @@
         <div class="md:text-right">
           <div class="mt-1 flex flex-wrap gap-2 justify-start md:justify-end">
             <div class="pill"><span class="muted">Network</span> <strong id="netPill">Mainnet</strong></div>
-            <div class="pill"><span class="muted">Wallet</span> <strong id="walletPill">Not connected</strong></div>
-            <div class="pill"><span class="muted">Ready</span> <strong id="readyPill" class="text-yellow-400">No</strong></div>
+            <div class="pill has-dot" id="walletPillWrap"><span class="muted">Wallet</span> <strong id="walletPill">Not connected</strong></div>
+            <div class="pill has-dot" id="readyPillWrap"><span class="muted">Ready</span> <strong id="readyPill">No</strong></div>
           </div>
         </div>
       </div>
@@ -734,8 +727,6 @@
     // Elements
     const tierCards = document.querySelectorAll(".tier-card");
     const selectedTierLabel = document.getElementById("selectedTierLabel");
-    const selectedTierThumb = document.getElementById("selectedTierThumb");
-    const selectedTierName = document.getElementById("selectedTierName");
     const selectedTierMeta = document.getElementById("selectedTierMeta");
     const priceEl = document.getElementById("price");
     const totalEl = document.getElementById("total");
@@ -749,11 +740,6 @@
     const stickyChangeBtn = document.getElementById("stickyChangeBtn");
     let userTierPicked = false;
 
-    // Cached pubkey for edge-cases (esp. in-app mobile browsers) where
-    // provider.publicKey / provider.isConnected may lag behind the connect() result.
-    let lastPubkey = "";
-    const LAST_PK_KEY = "tonfans_last_pubkey";
-
 
     const walletStatus = document.getElementById("walletStatus");
     const walletAddr = document.getElementById("walletAddr");
@@ -764,10 +750,16 @@
     const treasuryAddress = document.getElementById("treasuryAddress");
     const explorerLink = document.getElementById("explorerLink");
     const shareX = document.getElementById("shareX");
+    // Pills (top-right in Mint)
     const netPill = document.getElementById("netPill");
     const walletPill = document.getElementById("walletPill");
     const readyPill = document.getElementById("readyPill");
+    const walletPillWrap = document.getElementById("walletPillWrap");
+    const readyPillWrap = document.getElementById("readyPillWrap");
 
+
+    // Initialize cached wallet pubkey
+    loadCachedPubkey();
 
     // Helpers
     function fmt(n){ return (Math.round(n*1000)/1000).toFixed(n === 0.125 ? 3 : 2).replace(/\.00$/, ".00"); }
@@ -799,25 +791,7 @@
         showStickyBar();
       }
 
-      if (selectedTierName) selectedTierName.textContent = t.label;
-      else selectedTierLabel.textContent = t.label;
-
-      // Thumbnail: use the clicked card image if provided, otherwise derive from the tier card
-      const autoThumbSrc =
-        opts.thumbSrc ||
-        document
-          .querySelector(`.tier-card[data-tier="${selected}"] img`)
-          ?.getAttribute("src") ||
-        "";
-      if (selectedTierThumb) {
-        if (autoThumbSrc) {
-          selectedTierThumb.src = autoThumbSrc;
-          selectedTierThumb.classList.remove("hidden");
-        } else {
-          selectedTierThumb.removeAttribute("src");
-          selectedTierThumb.classList.add("hidden");
-        }
-      }
+      selectedTierLabel.textContent = t.label;
       selectedTierMeta.textContent = "guard: " + t.guard;
       priceEl.textContent = t.price.toString();
       totalEl.textContent = (t.price * qty).toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
@@ -921,16 +895,18 @@ function flashReady(){
 
     async function autoConnectIfRequested(){
       if (!shouldAutoConnect()) return;
-      // avoid loops / repeated prompts
       clearAutoConnect();
       if (!hasProvider() || isWalletConnected()){
         syncConnectCTA();
         return;
       }
       try {
-        await getProvider().connect();
+        const res = await getProvider().connect();
+        const pubkey = res?.publicKey?.toString?.() || getProvider().publicKey?.toString?.() || "";
+        if (pubkey) setCachedPubkey(pubkey);
+        else clearCachedPubkey();
       } catch (e) {
-        // user may reject; keep UI consistent
+        clearCachedPubkey();
       }
       syncConnectCTA();
     }
@@ -939,39 +915,31 @@ function flashReady(){
       return !!(p && typeof p.connect === "function");
     }
 
-    function loadLastPubkey(){
-      if (lastPubkey) return lastPubkey;
-      try {
-        lastPubkey = sessionStorage.getItem(LAST_PK_KEY) || "";
-      } catch {
-        lastPubkey = "";
-      }
-      return lastPubkey;
-    }
+    // Wallet state (single source of truth)
+    const PUBKEY_KEY = "tonfans_pubkey";
+    let cachedPubkey = "";
+    let connectInFlight = false;
 
-    function setLastPubkey(pk){
-      lastPubkey = (pk || "").toString();
-      try {
-        if (lastPubkey) sessionStorage.setItem(LAST_PK_KEY, lastPubkey);
-        else sessionStorage.removeItem(LAST_PK_KEY);
-      } catch {}
+    function loadCachedPubkey(){
+      try { cachedPubkey = sessionStorage.getItem(PUBKEY_KEY) || ""; } catch { cachedPubkey = ""; }
     }
-
-    function clearLastPubkey(){
-      setLastPubkey("");
+    function setCachedPubkey(pk){
+      cachedPubkey = pk || "";
+      try{
+        if (cachedPubkey) sessionStorage.setItem(PUBKEY_KEY, cachedPubkey);
+        else sessionStorage.removeItem(PUBKEY_KEY);
+      }catch(_e){}
     }
+    function clearCachedPubkey(){ setCachedPubkey(""); }
 
-    function getWalletPubkeyStr(){
+    function getActivePubkey(){
       const p = getProvider();
-      const pk = p?.publicKey?.toString?.() || "";
-      return pk || loadLastPubkey();
+      return (p?.publicKey?.toString?.() || "") || cachedPubkey || "";
     }
-
     function isWalletConnected(){
       const p = getProvider();
-      // Some providers set isConnected, some only expose publicKey
-      const providerConnected = !!(p && (p.isConnected || p.publicKey));
-      return providerConnected || !!loadLastPubkey();
+      const pk = getActivePubkey();
+      return !!(pk || (p && p.isConnected));
     }
 
     function syncConnectCTA(){
@@ -984,7 +952,6 @@ function flashReady(){
         disconnectBtn.classList.add("hidden");
         connectBtn.classList.remove("hidden");
 
-        window.__tonfans_connected = false;
         walletStatus.textContent = "Phantom not found";
         walletStatus.style.color = "var(--warn)";
         walletAddr.classList.add("hidden");
@@ -999,21 +966,17 @@ function flashReady(){
       connectBtn.dataset.mode = "connect";
 
       if (connected){
-        const pk = getWalletPubkeyStr();
-        if (pk) setLastPubkey(pk);
+        const pk = getActivePubkey();
         walletAddr.textContent = pk ? (pk.slice(0,4) + "…" + pk.slice(-4)) : "";
         walletAddr.classList.toggle("hidden", !pk);
 
         walletStatus.textContent = "Connected";
         walletStatus.style.color = "var(--good)";
-        window.__tonfans_connected = true;
-    connectBtn.classList.add("hidden");
+        connectBtn.classList.add("hidden");
         disconnectBtn.classList.remove("hidden");
       } else {
-        window.__tonfans_connected = false;
         walletStatus.textContent = "Not connected";
         walletStatus.style.color = "";
-        setLastPubkey("");
         walletAddr.classList.add("hidden");
         connectBtn.classList.remove("hidden");
         disconnectBtn.classList.add("hidden");
@@ -1025,6 +988,7 @@ function flashReady(){
     }
 
     async function connectWallet(){
+      if (connectInFlight) return;
       // Variant A: only if Phantom/provider missing → deep link
       if (!hasProvider()){
         try{ localStorage.setItem("tonfans_autoconnect", "1"); }catch(_e){}
@@ -1033,130 +997,78 @@ function flashReady(){
       }
 
       const provider = getProvider();
+      connectInFlight = true;
       try{
+        walletStatus.textContent = "Connecting…";
+        walletStatus.style.color = "";
         const res = await provider.connect();
-        const pubkey = (res?.publicKey?.toString?.() || provider.publicKey?.toString?.() || "").trim();
-        if (pubkey) {
-          setLastPubkey(pubkey);
-          window.__tonfans_connected = true;
-          try { localStorage.setItem("tonfans_autoconnect", "1"); } catch {}
-        }
-        walletAddr.textContent = pubkey ? (pubkey.slice(0,4) + "…" + pubkey.slice(-4)) : "";
-        walletAddr.classList.toggle("hidden", !pubkey);
+        const pubkey = res?.publicKey?.toString?.() || provider.publicKey?.toString?.() || "";
+        if (pubkey) setCachedPubkey(pubkey);
+        else clearCachedPubkey();
 
-        walletStatus.textContent = "Connected";
-        walletStatus.style.color = "var(--good)";
-        window.__tonfans_connected = true;
-    connectBtn.classList.add("hidden");
-        disconnectBtn.classList.remove("hidden");
-
+        syncConnectCTA();
         updateMintReady();
-        updateHealth();
         updateStickyBar();
         updateHealth();
       }catch(e){
-        // User rejected or provider errored — reset UI fully (no mixed signals)
+        clearCachedPubkey();
         walletStatus.textContent = "Connection rejected";
         walletStatus.style.color = "var(--warn)";
-
-        // Clear any stale address + cached pubkey
-        walletAddr.textContent = "";
         walletAddr.classList.add("hidden");
-        clearLastPubkey();
-        window.__tonfans_connected = false;
-        try { localStorage.removeItem("tonfans_autoconnect"); } catch {}
-
-        // Reset CTAs
+        walletAddr.textContent = "";
         connectBtn.classList.remove("hidden");
         disconnectBtn.classList.add("hidden");
-
         updateMintReady();
-        updateHealth();
         updateStickyBar();
+        updateHealth();
+        // Do not leave stale connected UI around
+        syncConnectCTA();
+      }finally{
+        connectInFlight = false;
       }
-
-      // Ensure CTAs are consistent
-      syncConnectCTA();
     }
 
     async function disconnectWallet(){
-      const provider = getProvider();
+      clearCachedPubkey();
       try{
-        await provider?.disconnect?.();
-      }catch(e){
-        // ignore provider errors
-      }
-
-      // Clear cached pk/flags
-      clearLastPubkey();
-      window.__tonfans_connected = false;
-      try { localStorage.removeItem("tonfans_autoconnect"); } catch {}
-
-      // Reset wallet UI (no mixed signals)
-      walletAddr.textContent = "";
+        await getProvider()?.disconnect?.();
+      }catch(_e){}
+      walletStatus.textContent = hasProvider() ? "Not connected" : "Phantom not found";
+      walletStatus.style.color = hasProvider() ? "" : "var(--warn)";
       walletAddr.classList.add("hidden");
-      walletStatus.textContent = "Not connected";
-      walletStatus.style.color = "var(--muted)";
-
-      // Reset CTAs
+      walletAddr.textContent = "";
       connectBtn.classList.remove("hidden");
       disconnectBtn.classList.add("hidden");
-
-      // Sync everything
-      syncConnectCTA();
       updateMintReady();
-      updateHealth();
       updateStickyBar();
+      updateHealth();
+      syncConnectCTA();
     }
 
     
     function updateHealth(){
-      const hasCM = !!(CANDY_MACHINE_ADDRESS && CANDY_MACHINE_ADDRESS.length > 20);
-      const providerOk = hasProvider();
+      // Jobs UX: Ready = wallet connected (mint readiness is handled separately by the Mint button state)
       const hasWallet = isWalletConnected();
-      // "Ready" indicates wallet connection (Candy Machine may still be TBD)
-      const isReady = hasWallet;
 
-      // Safe wallet pubkey string (works even if provider.publicKey lags)
-      const walletPk = getWalletPubkeyStr();
+      if (netPill) netPill.textContent = "Mainnet";
 
-      if (netPill) {
-        netPill.textContent = "Mainnet";
+      if (walletPill){
+        walletPill.textContent = hasWallet ? "Connected" : "Not connected";
+        walletPill.style.color = hasWallet ? "var(--good)" : "";
       }
-      if (walletPill) {
-        walletPill.textContent = hasWallet && walletPk ? short(walletPk) : "Not connected";
-        const wrapW = walletPill.closest(".pill");
-        if (wrapW) wrapW.classList.toggle("connected", !!(hasWallet && walletPk));
+      if (walletPillWrap){
+        walletPillWrap.classList.toggle("connected", hasWallet);
       }
-      if (readyPill) {
-        readyPill.textContent = isReady ? "Yes" : "No";
 
-        // Subtle "Yes" tint on the whole pill (Jobs-clean)
-        const wrapR = readyPill.closest(".pill");
-        if (wrapR) {
-          wrapR.classList.toggle("connected", isReady);
-          wrapR.classList.toggle("ready-yes", isReady);
-          wrapR.classList.toggle("ready-no", !isReady);
-        }
-
-        const wrap = readyPill.closest('.pill');
-        if (wrap) wrap.classList.toggle('ready-yes', isReady);
+      if (readyPill){
+        readyPill.textContent = hasWallet ? "Yes" : "No";
+        readyPill.style.color = hasWallet ? "var(--good)" : "var(--warn)";
       }
-    
-
-      // Pill wrapper classes (for dots + subtle tints)
-      const walletWrap = walletPill ? walletPill.closest('.pill') : null;
-      const readyWrap = readyPill ? readyPill.closest('.pill') : null;
-
-      if (walletWrap) {
-        walletWrap.classList.toggle('connected', !!(hasWallet && walletPk));
+      if (readyPillWrap){
+        readyPillWrap.classList.toggle("connected", hasWallet);
+        readyPillWrap.classList.toggle("ready-yes", hasWallet);
       }
-      if (readyWrap) {
-        readyWrap.classList.toggle('connected', !!isReady);
-        readyWrap.classList.toggle('ready-yes', !!isReady);
-        readyWrap.classList.toggle('ready-no', !isReady);
-      }
-}
+    }
 
 function updateMintReady(){
       const hasCM = !!(CANDY_MACHINE_ADDRESS && CANDY_MACHINE_ADDRESS.length > 20);
@@ -1208,15 +1120,13 @@ function updateMintReady(){
     }catch(_){}
 
     // Events
-    tierCards.forEach((c) =>
-      c.addEventListener("click", () =>
-        setTier(c.dataset.tier, { thumbSrc: c.querySelector("img")?.getAttribute("src") || "" })
-      )
-    );
+    tierCards.forEach(c => c.addEventListener("click", () => setTier(c.dataset.tier)));
     document.getElementById("qtyMinus").addEventListener("click", () => setQty(qty - 1));
     document.getElementById("qtyPlus").addEventListener("click", () => setQty(qty + 1));
-    connectBtn.addEventListener("click", connectWallet);
-    dis    // Sticky bar actions
+    connectBtn.onclick = () => connectWallet();
+    disconnectBtn.onclick = () => disconnectWallet();
+
+    // Sticky bar actions
     if (stickyChangeBtn){
       stickyChangeBtn.addEventListener("click", () => {
         const el = document.getElementById("tiers");
@@ -1290,6 +1200,17 @@ function updateMintReady(){
     initConfig();
     // If we arrived via Phantom deep-link, request wallet connection once.
     autoConnectIfRequested();
+
+    // Silent state sync (no popup): if wallet is already trusted, reflect it.
+    (async () => {
+      if (!hasProvider() || isWalletConnected()) return;
+      try{
+        const res = await getProvider().connect({ onlyIfTrusted: true });
+        const pubkey = res?.publicKey?.toString?.() || getProvider().publicKey?.toString?.() || "";
+        if (pubkey) setCachedPubkey(pubkey);
+      }catch(_e){}
+      syncConnectCTA();
+    })();
     // Wallet UI sync (shows Open in Phantom if missing)
     syncConnectCTA();
     setTier(selected, { silent: true });
