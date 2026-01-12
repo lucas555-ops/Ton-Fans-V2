@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3  
 
 """
 Split a big mixed collection into 4 Candy Machine asset folders.
