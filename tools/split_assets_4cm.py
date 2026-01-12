@@ -8,13 +8,13 @@ Expected inputs (you decide your structure):
   ./SOURCE/LittlGEN/*.png + *.json (500)
   ./SOURCE/BigGEN/*.png + *.json (500)
   ./SOURCE/LittlGENdiamond/*.png + *.json (185)
-  ./SOURCE/BigGENdiamond/*.png + *.json (85)
+  ./SOURCE/BigGENdiamond/*.png + *.json (185)
 
 Output:
   ./OUT/cm-lgen/assets/0.png..499.png + 0.json..499.json
   ./OUT/cm-bgen/assets/0.png..499.png + 0.json..499.json
   ./OUT/cm-ldia/assets/0.png..184.png + 0.json..184.json
-  ./OUT/cm-bdia/assets/0.png..84.png + 0.json..84.json
+  ./OUT/cm-bdia/assets/0.png..184.png + 0.json..184.json
 
 Usage:
   python split_assets_4cm.py --src ./SOURCE --out ./OUT
@@ -55,7 +55,7 @@ def main():
     (args.lgen, out/"cm-lgen"/"assets", 500),
     (args.bgen, out/"cm-bgen"/"assets", 500),
     (args.ldia, out/"cm-ldia"/"assets", 185),
-    (args.bdia, out/"cm-bdia"/"assets", 85),
+    (args.bdia, out/"cm-bdia"/"assets", 185),
   ]
   for folder, outdir, count in mapping:
     copy_set(src/folder, outdir, count)
