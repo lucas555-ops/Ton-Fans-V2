@@ -552,7 +552,7 @@
           <div class="mt-1 flex flex-wrap gap-2 justify-start md:justify-end">
             <div class="pill"><span class="muted">Network</span> <strong id="netPill">Mainnet</strong></div>
             <div class="pill"><span class="muted">Wallet</span> <strong id="walletPill">Not connected</strong></div>
-            <div class="pill"><span class="muted">Ready</span> <strong id="readyPill" class="text-yellow-400">No</strong></div>
+            <div class="pill"><span class="muted">Ready</span> <strong id="readyPill">No</strong></div>
           </div>
         </div>
       </div>
@@ -988,7 +988,14 @@ function flashReady(){
       }catch(e){
         walletStatus.textContent = "Connection rejected";
         walletStatus.style.color = "var(--warn)";
+        walletAddr.classList.add("hidden");
+        walletAddr.textContent = "";
+        connectBtn.classList.remove("hidden");
+        disconnectBtn.classList.add("hidden");
+        updateMintReady();
+        updateStickyBar();
         updateHealth();
+        return;
       }
 
       // Ensure CTAs are consistent
