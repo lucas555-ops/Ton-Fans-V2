@@ -911,8 +911,9 @@ function flashReady(){
     }
     function isWalletConnected(){
       const p = getProvider();
-      // Some providers set isConnected, some only expose publicKey
-      return !!(p && (p.isConnected || p.publicKey));
+      // ✅ FIXED: Check explicit isConnected flag (most reliable)
+      // Also accept if publicKey exists as fallback
+      return !!(p && (p.isConnected === true || (p.publicKey && typeof p.publicKey !== 'undefined')));
     }
 
     function syncConnectCTA(){
@@ -988,17 +989,10 @@ function flashReady(){
         walletStatus.textContent = "Connection rejected";
         walletStatus.style.color = "var(--warn)";
         updateHealth();
-        // ✅ FIX: Force update after error
-        setTimeout(() => updateHealth(), 50);
       }
 
       // Ensure CTAs are consistent
       syncConnectCTA();
-      // ✅ FIX: Force pills update after connection
-      setTimeout(() => {
-        syncConnectCTA();
-        updateHealth();
-      }, 50);
     }
 
     async function disconnectWallet(){
@@ -1007,8 +1001,6 @@ function flashReady(){
       }catch(e){}
 
       syncConnectCTA();
-      // ✅ FIX: Force pills update on disconnect
-      setTimeout(() => updateHealth(), 50);
     }
 
     
@@ -1027,7 +1019,8 @@ function flashReady(){
         netPill.textContent = "Mainnet";
       }
       if (walletPill) {
-        walletPill.textContent = hasWallet && walletPk ? short(walletPk) : "Not connected";
+        // ✅ FIXED: Replaced short() call with inline slice logic
+        walletPill.textContent = hasWallet && walletPk ? (walletPk.slice(0,4) + "…" + walletPk.slice(-4)) : "Not connected";
       }
       if (readyPill) {
         readyPill.textContent = isReady ? "Yes" : "No";
@@ -1174,8 +1167,6 @@ function updateMintReady(){
     autoConnectIfRequested();
     // Wallet UI sync (shows Open in Phantom if missing)
     syncConnectCTA();
-    // ✅ FIX: Ensure status pills are updated on page load
-    setTimeout(() => updateHealth(), 100);
     setTier(selected, { silent: true });
     setQty(1);
   </script>
