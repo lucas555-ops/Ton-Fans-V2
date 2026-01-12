@@ -313,12 +313,8 @@ body.has-sticky{
 }
 
 
-/* Toast show class (matches assets/js/ui.js) */
-.toast--show{
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-  transition: opacity .22s ease, transform .22s ease;
-}
+/* Toast show class (matches assets/js/ui.js) — use .toast.toast-in instead */
+/* .toast--show is deprecated; use .toast.toast-in for consistency */
 
 .toast-dot{
   width: 6px;
@@ -327,12 +323,6 @@ body.has-sticky{
   background: rgba(0,193,255,.85);
   box-shadow: 0 0 0 3px rgba(0,193,255,.16);
   display: inline-block;
-}
-
-.toast{
-  display: inline-flex;
-  align-items: center;
-  gap: .55rem;
 }
 
 /* ---------- Section focus pulse (for #tiers / #mint) ---------- */
