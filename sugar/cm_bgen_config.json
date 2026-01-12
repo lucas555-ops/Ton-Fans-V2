@@ -1,5 +1,5 @@
 {
-  "tokenStandard": "nft",
+  "tokenStandard": "nft", 
   "number": 500,
   "symbol": "TONFANS",
   "sellerFeeBasisPoints": 500,
