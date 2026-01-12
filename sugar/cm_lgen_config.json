@@ -1,0 +1,36 @@
+{
+  "tokenStandard": "nft",
+  "number": 500,
+  "symbol": "TONFANS",
+  "sellerFeeBasisPoints": 500,
+  "isMutable": true,
+  "isSequential": false,
+  "ruleSet": null,
+  "creators": [
+    {
+      "address": "CREATOR_WALLET_HERE",
+      "share": 100
+    }
+  ],
+  "hiddenSettings": null,
+  "uploadMethod": "bundlr",
+  "awsConfig": null,
+  "pinataConfig": null,
+  "sdriveApiKey": null,
+  "guards": {
+    "default": {
+      "botTax": {
+        "value": 0.01,
+        "lastInstruction": true
+      },
+      "mintLimit": {
+        "id": 1,
+        "limit": 3
+      },
+      "solPayment": {
+        "value": 0.1,
+        "destination": "TREASURY_WALLET_HERE"
+      }
+    }
+  }
+}
