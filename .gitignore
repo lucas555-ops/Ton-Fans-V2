@@ -1,0 +1,77 @@
+# =========================
+# OS / Editor junk
+# =========================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.log
+
+# VSCode / JetBrains
+.vscode/
+.idea/
+*.iml
+
+# =========================
+# Node / JS
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+dist/
+build/
+.next/
+out/
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.env.local
+
+# =========================
+# Solana / Sugar / Keys (NEVER COMMIT)
+# =========================
+**/keypair*.json
+**/*keypair*.json
+*.key
+*.pem
+
+# Sugar artifacts / cache
+.sugar-cache/
+.cache/
+.sugar/
+sugar-cache/
+sugar/.cache/
+**/.cache/
+
+# =========================
+# Candy Machine generated assets (keep LOCAL)
+# =========================
+# After split_assets_4cm.py these appear inside cms/*/assets
+cms/**/assets/*.png
+cms/**/assets/*.jpg
+cms/**/assets/*.jpeg
+cms/**/assets/*.gif
+cms/**/assets/*.webp
+cms/**/assets/*.json
+
+# Optional: large raw asset folders if you keep originals in repo directory
+assets_raw/
+source_assets/
+raw_assets/
+input_assets/
+
+# =========================
+# Archives / exports
+# =========================
+*.zip
+*.tar
+*.tar.gz
+*.7z
