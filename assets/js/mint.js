@@ -6,40 +6,79 @@
 // ---- Lazy-load UMI + Candy Machine deps (keeps wallet connect + tier UI working even if CDNs are slow) ----
 let __TONFANS_DEPS_PROMISE__ = null;
 async function loadTonfansDeps() {
+  // Lazy-load all Metaplex/Umi deps with CDN fallbacks (fixes "Failed to fetch dynamically imported module")
   if (__TONFANS_DEPS_PROMISE__) return __TONFANS_DEPS_PROMISE__;
+
+  const importWithFallback = async (label, urls) => {
+    let lastErr;
+    for (const u of urls) {
+      try {
+        // @ts-ignore - runtime dynamic import
+        return await import(u);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    const msg = (lastErr && (lastErr.message || String(lastErr))) || "Unknown error";
+    throw new Error(`[TONFANS] Failed to load "${label}" from CDN. ${msg}`);
+  };
+
+  // Versions that are known to work together in browser ESM
+  const UMI_DEFAULTS_VER = "1.0.1";
+  const UMI_VER = "1.0.1";
+  const CANDY_VER = "6.0.1";
+  const TM_VER = "5.0.1";
+  const TOOLBOX_VER = "1.0.0";
+  const WA_VER = "1.0.1";
+
+  const urls = {
+    umiDefaults: [
+      `https://esm.sh/@metaplex-foundation/umi-bundle-defaults@${UMI_DEFAULTS_VER}?bundle&target=es2022`,
+      `https://cdn.jsdelivr.net/npm/@metaplex-foundation/umi-bundle-defaults@${UMI_DEFAULTS_VER}/+esm`,
+      `https://unpkg.com/@metaplex-foundation/umi-bundle-defaults@${UMI_DEFAULTS_VER}?module`,
+    ],
+    umi: [
+      `https://esm.sh/@metaplex-foundation/umi@${UMI_VER}?bundle&target=es2022`,
+      `https://cdn.jsdelivr.net/npm/@metaplex-foundation/umi@${UMI_VER}/+esm`,
+      `https://unpkg.com/@metaplex-foundation/umi@${UMI_VER}?module`,
+    ],
+    candy: [
+      `https://esm.sh/@metaplex-foundation/mpl-candy-machine@${CANDY_VER}?bundle&target=es2022`,
+      `https://cdn.jsdelivr.net/npm/@metaplex-foundation/mpl-candy-machine@${CANDY_VER}/+esm`,
+      `https://unpkg.com/@metaplex-foundation/mpl-candy-machine@${CANDY_VER}?module`,
+    ],
+    tokenMeta: [
+      `https://esm.sh/@metaplex-foundation/mpl-token-metadata@${TM_VER}?bundle&target=es2022`,
+      `https://cdn.jsdelivr.net/npm/@metaplex-foundation/mpl-token-metadata@${TM_VER}/+esm`,
+      `https://unpkg.com/@metaplex-foundation/mpl-token-metadata@${TM_VER}?module`,
+    ],
+    toolbox: [
+      `https://esm.sh/@metaplex-foundation/mpl-toolbox@${TOOLBOX_VER}?bundle&target=es2022`,
+      `https://cdn.jsdelivr.net/npm/@metaplex-foundation/mpl-toolbox@${TOOLBOX_VER}/+esm`,
+      `https://unpkg.com/@metaplex-foundation/mpl-toolbox@${TOOLBOX_VER}?module`,
+    ],
+    walletAdapters: [
+      `https://esm.sh/@metaplex-foundation/umi-signer-wallet-adapters@${WA_VER}?bundle&target=es2022`,
+      `https://cdn.jsdelivr.net/npm/@metaplex-foundation/umi-signer-wallet-adapters@${WA_VER}/+esm`,
+      `https://unpkg.com/@metaplex-foundation/umi-signer-wallet-adapters@${WA_VER}?module`,
+    ],
+  };
+
   __TONFANS_DEPS_PROMISE__ = (async () => {
-    const [umiDefaults, cm, tm, wa, toolbox, umiCore] = await Promise.all([
-      import('https://esm.sh/@metaplex-foundation/umi-bundle-defaults@1.0.1'),
-      import('https://esm.sh/@metaplex-foundation/mpl-candy-machine@6.0.0'),
-      import('https://esm.sh/@metaplex-foundation/mpl-token-metadata@3.4.0'),
-      import('https://esm.sh/@metaplex-foundation/umi-signer-wallet-adapters@0.9.1'),
-      import('https://esm.sh/@metaplex-foundation/mpl-toolbox@0.9.1'),
-      import('https://esm.sh/@metaplex-foundation/umi@1.0.1'),
+    const [umiDefaults, umiCore, cm, tm, toolbox, wa] = await Promise.all([
+      importWithFallback("umi-bundle-defaults", urls.umiDefaults),
+      importWithFallback("umi", urls.umi),
+      importWithFallback("mpl-candy-machine", urls.candy),
+      importWithFallback("mpl-token-metadata", urls.tokenMeta),
+      importWithFallback("mpl-toolbox", urls.toolbox),
+      importWithFallback("umi-signer-wallet-adapters", urls.walletAdapters),
     ]);
-
-    return {
-      // UMI
-      createUmi: umiDefaults.createUmi,
-      generateSigner: umiCore.generateSigner,
-      publicKey: umiCore.publicKey,
-      transactionBuilder: umiCore.transactionBuilder,
-
-      // Candy Machine
-      mplCandyMachine: cm.mplCandyMachine,
-      fetchCandyMachine: cm.fetchCandyMachine,
-      mintV2: cm.mintV2,
-
-      // Token Metadata plugin (required by CM)
-      mplTokenMetadata: tm.mplTokenMetadata,
-
-      // Wallet identity + compute units
-      walletAdapterIdentity: wa.walletAdapterIdentity,
-      setComputeUnitLimit: toolbox.setComputeUnitLimit,
-    };
+    return { umiDefaults, umiCore, cm, tm, toolbox, wa };
   })();
 
   return __TONFANS_DEPS_PROMISE__;
 }
+
 
 // ---- 4 CANDY MACHINES CONFIG (EDIT THESE) ----
 const CM_CLUSTER = "devnet"; // "devnet" | "mainnet-beta"
@@ -48,11 +87,12 @@ const CM_RPC =
 
 // ✅ EACH TIER HAS ITS OWN CANDY MACHINE
 const CM_BY_TIER = {
-  "littlegen": "Hr9YzscC71vdHifZR4jRvMd8JmmGxbJrS6j7QckEVqKy",
-  "biggen": "Ewhn2nJV6tbvq59GMahyWmS54jQWL4n3mrsoVM8n8GHH",
-  "littlegen_diamond": "8L5MLvbvM9EsZ8nb1NAwqzEXuVsiq5x5fHGNKchz6UQR",
-  "biggen_diamond": "EyjoAcKwkfNo8NqCZczHHnNSi3ccYpnCetkBUwbqCien",
-};
+      // DEVNET Candy Machine IDs (deployed via sugar)
+      littlegen: "Hr9YzscC71vdHifZR4jRvMd8JmmGxbJrS6j7QckEVqKy",
+      biggen: "Ewhn2nJV6tbvq59GMahyWmS54jQWL4n3mrsoVM8n8GHH",
+      littlegen_diamond: "8L5MLvbvM9EsZ8nb1NAwqzEXuVsiq5x5fHGNKchz6UQR",
+      biggen_diamond: "EyjoAcKwkfNo8NqCZczHHnNSi3ccYpnCetkBUwbqCien"
+    };
 
 // ---- Original inline script (wallet UX + tier selection + sticky bar etc.) ----
     // =========================
@@ -68,7 +108,7 @@ const CM_BY_TIER = {
       littlegen: { label: "LittlGEN", price: 0.10, supply: 500, cm: "littlegen" },
       biggen: { label: "BigGEN", price: 0.125, supply: 500, cm: "biggen" },
       littlegen_diamond: { label: "LittlGEN Diamond", price: 0.15, supply: 185, cm: "littlegen_diamond" },
-      biggen_diamond: { label: "BigGEN Diamond", price: 0.20, supply: 185, cm: "biggen_diamond" },
+      biggen_diamond: { label: "BigGEN Diamond", price: 0.20, supply: 85, cm: "biggen_diamond" },
     };
 
     // State
@@ -157,7 +197,23 @@ const CM_BY_TIER = {
       if(!stickyBar) return;
       const t = tiers[selected];
       if(stickySelected) stickySelected.textContent = `${t.label} × ${qty} = ${fmt(t.price * qty)} SOL`;
-    }
+    
+      // Sticky primary action
+      if (stickyActionBtn){
+        const connected = isWalletConnected();
+        if (!hasProvider()){
+          stickyActionBtn.textContent = "Get Phantom";
+          stickyActionBtn.disabled = false;
+        }else if (!connected){
+          stickyActionBtn.textContent = "Connect";
+          stickyActionBtn.disabled = false;
+        }else{
+          stickyActionBtn.textContent = "Mint now";
+          stickyActionBtn.disabled = false;
+        }
+      }
+
+}
 
     function showStickyBar(){
       if(!stickyBar) return;
@@ -385,7 +441,26 @@ const CM_BY_TIER = {
     }
 
     mintBtn.addEventListener("click", mintFromSelectedTier);
-    document.getElementById("year").textContent = new Date().getFullYear();
+    
+      // Sticky bar primary action:
+      // - If not connected: Connect (or deep-link to Phantom)
+      // - If connected: Mint selected tier
+      if (stickyActionBtn){
+        stickyActionBtn.addEventListener("click", async (e) => {
+          e.preventDefault();
+          try{
+            if (!isWalletConnected()){
+              await connectWallet();
+              return;
+            }
+            await mintFromSelectedTier();
+          }catch(err){
+            setStatus(formatError(err), true);
+            console.error(err);
+          }
+        });
+      }
+document.getElementById("year").textContent = new Date().getFullYear();
 
     // Bootstrap wallet state
     bootstrapWalletState().then(async () => {
