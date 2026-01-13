@@ -1,528 +1,680 @@
-/* TONFANS Mint (static-site, no build) — Devnet
- * - Wallet: Phantom window.solana
- * - Mint: Metaplex Umi + mpl-candy-machine (loaded from CDN)
- * - NO wallet-adapter dependency (avoids umi-signer-wallet-adapters CDN issues)
- *
- * Expected HTML IDs/classes (from TONFANS index.html):
- * - Tier cards: button.tier-card[data-tier]
- * - Selected tier label: #selectedTier, #stickySelected
- * - Main buttons: #connectBtn, #mintBtn
- * - Sticky action button: #stickyActionBtn
- * - Status blocks: #walletStatus, #mintHint, #mintErr
- */
+/* assets/js/mint.js
+   TONFANS 4-CM Mint Controller (UI + Wallet + Mint)
+   - Fixes: tier outline, top pills, stickybar, connect/disconnect, mint action
+*/
 
 (() => {
   "use strict";
 
-  // -----------------------------
-  // CONFIG
-  // -----------------------------
-  const CLUSTER = "devnet";
-  const DEFAULT_RPC = "https://api.devnet.solana.com";
-
-  // If you want to override from HTML before this script loads:
-  // <script>window.TONFANS_RPC="...";</script>
-  const RPC = (typeof window !== "undefined" && window.TONFANS_RPC) ? window.TONFANS_RPC : DEFAULT_RPC;
-
-  // Candy Machine IDs (devnet) — deployed in your logs
-  const CM_BY_TIER = Object.freeze({
-    // Genesis
-    littlegen: "Hr9YzscC71vdHifZR4jRvMd8JmmGxbJrS6j7QckEVqKy",        // LittlGEN (501)
-    biggen: "Ewhn2nJV6tbvq59GMahyWmS54jQWL4n3mrsoVM8n8GHH",          // BigGEN (500)
-    // Diamond
-    littlegen_diamond: "8L5MLvbvM9EsZ8nb1NAwqzEXuVsiq5x5fHGNKchz6UQR", // LittlGEN Diamond (185)
-    biggen_diamond: "EyjoAcKwkfNo8NqCZczHHnNSi3ccYpnCetkBUwbqCien",    // BigGEN Diamond (185)
-  });
-
-  // The SOL treasury destination used by Sugar when you uploaded (Funding address)
-  const TREASURY_DESTINATION = "9mG7vEEABrX5X4mg9WCAa17XpCxR28Ute2iEaDbHTJtD";
-
-  // CDN import versions (pinning avoids surprises)
-  // Sources (versions may change; pin what works for you)
-  const UMI_VER = "1.4.1";
-  const UMI_DEFAULTS_VER = "1.4.1";
-  const UMI_WEB3JS_VER = "1.4.1";
-  const CANDY_VER = "6.1.0";
-  const WEB3_VER = "1.98.4";
+  const LOG = "[TONFANS]";
 
   // -----------------------------
-  // DOM helpers
+  // CONFIG (can be overridden via window.*)
   // -----------------------------
-  const $ = (sel) => document.querySelector(sel);
-  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-  const shortPk = (s) => (typeof s === "string" && s.length > 8 ? `${s.slice(0, 4)}…${s.slice(-4)}` : s);
+  const DEFAULT_CLUSTER = "devnet"; // "mainnet-beta"
+  const DEFAULT_RPC =
+    DEFAULT_CLUSTER === "devnet"
+      ? "https://api.devnet.solana.com"
+      : "https://api.mainnet-beta.solana.com";
 
-  function setText(el, txt) {
-    if (!el) return;
-    el.textContent = txt;
-  }
-  function show(el) { if (el) el.classList.remove("hidden"); }
-  function hide(el) { if (el) el.classList.add("hidden"); }
+  const CLUSTER = String(
+    window.TONFANS_CLUSTER || window.CM_CLUSTER || DEFAULT_CLUSTER
+  ).trim();
 
-  function setWalletStatus(msg, kind = "info") {
-    const el = $("#walletStatus");
-    if (!el) return;
-    el.classList.remove("status-ok", "status-warn", "status-err");
-    if (kind === "ok") el.classList.add("status-ok");
-    else if (kind === "warn") el.classList.add("status-warn");
-    else if (kind === "err") el.classList.add("status-err");
-    el.textContent = msg;
-  }
-  function setMintHint(msg) {
-    const el = $("#mintHint");
-    if (!el) return;
-    el.textContent = msg || "";
-  }
-  function setMintError(err) {
-    const el = $("#mintErr");
-    if (!el) return;
-    el.textContent = err ? String(err) : "";
-  }
+  const RPC_URL = String(window.TONFANS_RPC || window.CM_RPC || DEFAULT_RPC).trim();
+
+  // Treasury = solPayment destination (your wallet)
+  const TREASURY_DESTINATION = String(
+    window.TONFANS_TREASURY || window.TREASURY_ADDRESS || "9mG7vEEABrX5X4mg9WCAa17XpCxR28Ute2iEaDbHTJtD"
+  ).trim();
+
+  // 4 Candy Machines by tier (DEVNET addresses from your deploy logs)
+  const CM_BY_TIER = window.TONFANS_CM_BY_TIER || window.CM_BY_TIER || {
+    littlegen: "Hr9YzscC71vdHifZR4jRvMd8JmmGxbJrS6j7QckEVqKy",
+    biggen: "Ewhn2nJV6tbvq59GMahyWmS54jQWL4n3mrsoVM8n8GHH",
+    littlgen_diamond: "8L5MLvbvM9EsZ8nb1NAwqzEXuVsiq5x5fHGNKchz6UQR",
+    biggen_diamond: "EyjoAcKwkfNo8NqCZczHHnNSi3ccYpnCetkBUwbqCien",
+  };
+
+  // Tier metadata (only for UI)
+  const TIERS = window.TONFANS_TIERS || {
+    littlegen: { key: "littlegen", label: "LittlGEN", priceSol: 0.10, supply: 500, guardLabel: "Sol Payment" },
+    biggen: { key: "biggen", label: "BigGEN", priceSol: 0.20, supply: 500, guardLabel: "Sol Payment" },
+    littlgen_diamond: { key: "littlgen_diamond", label: "LittlGEN Diamond", priceSol: 0.30, supply: 185, guardLabel: "Sol Payment" },
+    biggen_diamond: { key: "biggen_diamond", label: "BigGEN Diamond", priceSol: 0.40, supply: 185, guardLabel: "Sol Payment" },
+  };
+
+  // Back-compat globals for ui.js (IMPORTANT so ui.js doesn't disable Mint)
+  window.CM_BY_TIER = CM_BY_TIER;
+  window.TREASURY_ADDRESS = TREASURY_DESTINATION;
+  window.CM_CLUSTER = CLUSTER;
+  window.CM_RPC = RPC_URL;
 
   // -----------------------------
-  // State
+  // STATE
   // -----------------------------
   const state = {
-    selectedTier: "littlegen",
-    wallet: null,            // Phantom provider
-    walletPubkey: null,      // base58 string
+    selectedTier: null,
+    qty: 1,
+    walletPubkey: null,
+    walletConnected: false,
     isMinting: false,
+    depsPromise: null,
   };
 
   // -----------------------------
-  // CDN dynamic import w/ fallbacks
+  // DOM HELPERS
   // -----------------------------
-  const CDN_BUILDERS = [
-    // esm.sh usually works well for Umi packages
-    (pkg) => `https://esm.sh/${pkg}?bundle&target=es2020`,
-    // jsdelivr +esm fallback
-    (pkg) => `https://cdn.jsdelivr.net/npm/${pkg}/+esm`,
-    // skypack fallback (may not work for all metaplex pkgs)
-    (pkg) => `https://cdn.skypack.dev/${pkg}`,
-  ];
+  const $ = (id) => document.getElementById(id);
 
-  async function importWithFallback(pkg) {
-    const errors = [];
-    for (const build of CDN_BUILDERS) {
-      const url = build(pkg);
-      try {
-        // eslint-disable-next-line no-new-func
-        return await import(/* webpackIgnore: true */ url);
-      } catch (e) {
-        errors.push({ url, error: e });
+  const els = {
+    // Tier cards
+    tierCards: Array.from(document.querySelectorAll("[data-tier]")),
+
+    // Selected tier box
+    selectedTierName: $("selectedTierName") || $("selectedTierTitle") || $("selectedTier"),
+    selectedTierGuard: $("selectedTierGuard") || $("selectedTierLabel") || $("selectedTierMeta"),
+
+    // Price UI (optional)
+    priceValue: $("priceValue") || $("price") || $("priceText"),
+    totalValue: $("totalValue") || $("estimatedTotal") || $("total"),
+
+    // Quantity UI
+    qtyMinus: $("qtyMinus") || $("qtyDec"),
+    qtyPlus: $("qtyPlus") || $("qtyInc"),
+    qtyValue: $("qtyValue") || $("qty") || $("quantityValue"),
+
+    // Wallet buttons (main)
+    connectBtn: $("connectBtn") || $("walletConnectBtn"),
+    disconnectBtn: $("disconnectBtn") || $("walletDisconnectBtn"),
+
+    // Mint UI
+    mintBtn: $("mintBtn") || $("mintNowBtn"),
+    mintHint: $("mintHint") || $("mintStatus") || $("mintError"),
+
+    // Top pills (value spans)
+    networkPill: $("networkPill") || $("netPill") || $("networkValue"),
+    walletPill: $("walletPill") || $("walletValue"),
+    readyPill: $("readyPill") || $("readyValue"),
+
+    // Sticky bar
+    stickyBar: $("stickyMintBar") || $("stickyBar"),
+    stickyActionBtn: $("stickyActionBtn") || $("stickyBtn") || $("stickyMintBtn"),
+    stickyTier: $("stickyTier") || $("stickyTierName"),
+  };
+
+  function shortPk(pk) {
+    if (!pk || typeof pk !== "string") return "—";
+    if (pk.length <= 10) return pk;
+    return pk.slice(0, 4) + "…" + pk.slice(-4);
+  }
+
+  function safeText(el, text) {
+    if (!el) return;
+    el.textContent = text;
+  }
+
+  function safeHTML(el, html) {
+    if (!el) return;
+    el.innerHTML = html;
+  }
+
+  function show(el) {
+    if (!el) return;
+    el.style.display = "";
+  }
+
+  function hide(el) {
+    if (!el) return;
+    el.style.display = "none";
+  }
+
+  function hasProvider() {
+    return typeof window !== "undefined" && window.solana && typeof window.solana.connect === "function";
+  }
+
+  function getProvider() {
+    return window.solana || null;
+  }
+
+  function clusterParam() {
+    return CLUSTER === "devnet" ? "devnet" : "mainnet-beta";
+  }
+
+  function explorerTx(sig) {
+    return `https://explorer.solana.com/tx/${sig}?cluster=${clusterParam()}`;
+  }
+
+  function currentCandyMachine() {
+    if (!state.selectedTier) return "";
+    return (CM_BY_TIER[state.selectedTier] || "").trim();
+  }
+
+  function isReady() {
+    return !!state.walletConnected && !!state.walletPubkey && !!currentCandyMachine();
+  }
+
+  // -----------------------------
+  // UI RENDER
+  // -----------------------------
+  function setSelectedTier(tierKey, { silent = false } = {}) {
+    if (!tierKey || !TIERS[tierKey]) return;
+
+    state.selectedTier = tierKey;
+    localStorage.setItem("tonfans_selected_tier", tierKey);
+
+    // Tier card outline (IMPORTANT)
+    els.tierCards.forEach((card) => {
+      const t = card.getAttribute("data-tier");
+      card.classList.toggle("tier-selected", t === tierKey);
+    });
+
+    // Selected tier box
+    safeText(els.selectedTierName, TIERS[tierKey].label || tierKey);
+    safeText(els.selectedTierGuard, `guard: ${TIERS[tierKey].guardLabel || "—"}`);
+
+    // Sticky tier name
+    safeText(els.stickyTier, TIERS[tierKey].label || tierKey);
+
+    // Price blocks
+    const price = Number(TIERS[tierKey].priceSol || 0);
+    if (els.priceValue) safeText(els.priceValue, `${price.toFixed(2)} SOL`);
+    updateEstimatedTotal();
+
+    // Back-compat for ui.js (so it doesn't disable Mint)
+    window.CANDY_MACHINE_ADDRESS = currentCandyMachine();
+
+    if (!silent) showStickyBar();
+    renderHealth();
+    renderActions();
+  }
+
+  function setQty(next) {
+    const n = Math.max(1, Math.min(10, Number(next || 1)));
+    state.qty = n;
+    if (els.qtyValue) safeText(els.qtyValue, String(n));
+    updateEstimatedTotal();
+    renderActions();
+  }
+
+  function updateEstimatedTotal() {
+    if (!state.selectedTier) return;
+    const price = Number(TIERS[state.selectedTier]?.priceSol || 0);
+    const total = price * (state.qty || 1);
+    if (els.totalValue) safeText(els.totalValue, `${total.toFixed(2)} SOL`);
+  }
+
+  function showStickyBar() {
+    if (!els.stickyBar) return;
+    show(els.stickyBar);
+    // if your CSS uses a class trigger, keep it too:
+    els.stickyBar.classList.add("is-visible");
+  }
+
+  function renderHealth() {
+    // network
+    if (els.networkPill) safeText(els.networkPill, CLUSTER === "devnet" ? "Devnet" : "Mainnet");
+
+    // wallet
+    if (els.walletPill) safeText(els.walletPill, state.walletConnected ? "Connected" : "Not connected");
+
+    // ready
+    if (els.readyPill) safeText(els.readyPill, isReady() ? "Yes" : "No");
+  }
+
+  function renderActions() {
+    // Connect/Disconnect buttons
+    if (els.connectBtn && els.disconnectBtn) {
+      if (state.walletConnected) {
+        hide(els.connectBtn);
+        show(els.disconnectBtn);
+        els.disconnectBtn.disabled = false;
+        safeText(els.disconnectBtn, `Disconnect (${shortPk(state.walletPubkey)})`);
+      } else {
+        show(els.connectBtn);
+        hide(els.disconnectBtn);
+        els.connectBtn.disabled = false;
+      }
+    } else if (els.connectBtn && !els.disconnectBtn) {
+      // Single-button toggle mode
+      els.connectBtn.disabled = false;
+      safeText(
+        els.connectBtn,
+        state.walletConnected ? `Connected: ${shortPk(state.walletPubkey)} (click to disconnect)` : "Connect wallet"
+      );
+    }
+
+    // Mint button
+    if (els.mintBtn) {
+      const ready = isReady();
+      els.mintBtn.disabled = !ready || state.isMinting;
+      els.mintBtn.classList.toggle("is-disabled", els.mintBtn.disabled);
+    }
+
+    // Sticky action button
+    if (els.stickyActionBtn) {
+      if (state.isMinting) {
+        els.stickyActionBtn.disabled = true;
+        safeText(els.stickyActionBtn, "Minting…");
+      } else if (!hasProvider()) {
+        els.stickyActionBtn.disabled = false;
+        safeText(els.stickyActionBtn, "Get Phantom");
+      } else if (!state.walletConnected) {
+        els.stickyActionBtn.disabled = false;
+        safeText(els.stickyActionBtn, "Connect");
+      } else if (!currentCandyMachine()) {
+        els.stickyActionBtn.disabled = true;
+        safeText(els.stickyActionBtn, "Select tier");
+      } else {
+        els.stickyActionBtn.disabled = false;
+        safeText(els.stickyActionBtn, "Mint now");
       }
     }
-    const msg =
-      errors
-        .map((x, i) => `#${i + 1} ${x.url}\n   ${String(x.error && (x.error.message || x.error))}`)
-        .join("\n");
-    throw new Error(`[TONFANS] Failed to load "${pkg}". Tried:\n${msg}`);
-  }
 
-  let _depsPromise = null;
-  async function deps() {
-    if (_depsPromise) return _depsPromise;
-    _depsPromise = (async () => {
-      const [umiDefaults, umiCore, umiWeb3Adapters, candy, web3] = await Promise.all([
-        importWithFallback(`@metaplex-foundation/umi-bundle-defaults@${UMI_DEFAULTS_VER}`),
-        importWithFallback(`@metaplex-foundation/umi@${UMI_VER}`),
-        importWithFallback(`@metaplex-foundation/umi-web3js-adapters@${UMI_WEB3JS_VER}`),
-        importWithFallback(`@metaplex-foundation/mpl-candy-machine@${CANDY_VER}`),
-        importWithFallback(`@solana/web3.js@${WEB3_VER}`),
-      ]);
-
-      return {
-        // Umi
-        createUmi: umiDefaults.createUmi,
-        publicKey: umiCore.publicKey,
-        some: umiCore.some,
-        transactionBuilder: umiCore.transactionBuilder,
-        signerIdentity: umiCore.signerIdentity,
-        createNoopSigner: umiCore.createNoopSigner,
-        createSignerFromKeypair: umiCore.createSignerFromKeypair,
-        // web3js ↔ umi helpers
-        toWeb3JsLegacyTransaction: umiWeb3Adapters.toWeb3JsLegacyTransaction,
-        fromWeb3JsKeypair: umiWeb3Adapters.fromWeb3JsKeypair,
-        // Candy Machine
-        mplCandyMachine: candy.mplCandyMachine,
-        fetchCandyMachine: candy.fetchCandyMachine,
-        safeFetchCandyGuard: candy.safeFetchCandyGuard,
-        mintV2: candy.mintV2,
-        // web3.js
-        web3,
-      };
-    })();
-    return _depsPromise;
-  }
-
-  // -----------------------------
-  // Wallet (Phantom)
-  // -----------------------------
-  function getProvider() {
-    const provider = window.solana;
-    if (!provider || !provider.isPhantom) return null;
-    return provider;
-  }
-
-  async function connectWallet() {
-    setMintError("");
-    const provider = getProvider();
-    if (!provider) {
-      setWalletStatus("Phantom wallet not found. Install Phantom to mint.", "err");
-      throw new Error("Phantom wallet not found");
+    // Hint line
+    if (els.mintHint) {
+      if (!state.selectedTier) {
+        safeText(els.mintHint, "Select a tier to continue.");
+      } else if (!currentCandyMachine()) {
+        safeText(els.mintHint, "Candy Machine is not set for this tier.");
+      } else if (!hasProvider()) {
+        safeText(els.mintHint, "Install Phantom (recommended) or a wallet that exposes window.solana.");
+      } else if (!state.walletConnected) {
+        safeText(els.mintHint, "Connect wallet to mint.");
+      } else if (state.isMinting) {
+        safeText(els.mintHint, "Minting… please confirm in your wallet.");
+      } else {
+        safeText(els.mintHint, "Ready to mint.");
+      }
     }
-    state.wallet = provider;
 
-    // connect may prompt
-    await provider.connect({ onlyIfTrusted: false });
+    renderHealth();
+  }
 
-    state.walletPubkey = provider.publicKey?.toString?.() || null;
-    if (!state.walletPubkey) throw new Error("Wallet connected but publicKey missing");
+  // -----------------------------
+  // WALLET
+  // -----------------------------
+  async function connectWallet({ silent = false } = {}) {
+    if (!hasProvider()) {
+      // Deep-link to Phantom (mobile)
+      const url = location.href;
+      const deeplink = `https://phantom.app/ul/browse/${encodeURIComponent(url)}?ref=${encodeURIComponent(
+        location.host
+      )}`;
+      if (!silent) window.open(deeplink, "_blank");
+      throw new Error("No wallet provider found (window.solana).");
+    }
 
-    setWalletStatus(`Connected: ${shortPk(state.walletPubkey)} (${CLUSTER})`, "ok");
-    renderWalletUI();
+    const provider = getProvider();
+
+    try {
+      // silent connect
+      const resp = silent
+        ? await provider.connect({ onlyIfTrusted: true })
+        : await provider.connect();
+
+      const pk = resp?.publicKey?.toString?.() || provider.publicKey?.toString?.();
+      if (!pk) throw new Error("Connected but no publicKey returned.");
+
+      state.walletPubkey = pk;
+      state.walletConnected = true;
+
+      localStorage.setItem("tonfans_autoconnect", "1");
+      localStorage.setItem("tonfans_last_pubkey", pk);
+
+      renderActions();
+      return pk;
+    } catch (e) {
+      if (!silent) console.error(LOG, "connect failed:", e);
+      state.walletConnected = false;
+      state.walletPubkey = null;
+      renderActions();
+      throw e;
+    }
   }
 
   async function disconnectWallet() {
-    setMintError("");
-    const provider = state.wallet || getProvider();
-    if (!provider) return;
-    try { await provider.disconnect(); } catch (_) {}
+    const provider = getProvider();
+    try {
+      if (provider && typeof provider.disconnect === "function") {
+        await provider.disconnect();
+      }
+    } catch (_) {
+      // ignore
+    }
+
+    state.walletConnected = false;
     state.walletPubkey = null;
-    setWalletStatus(`Not connected (${CLUSTER})`, "warn");
-    renderWalletUI();
+
+    localStorage.removeItem("tonfans_autoconnect");
+    localStorage.removeItem("tonfans_last_pubkey");
+
+    renderActions();
   }
 
   function bindWalletEvents() {
     const provider = getProvider();
-    if (!provider || provider.__tonfansBound) return;
-    provider.__tonfansBound = true;
+    if (!provider || typeof provider.on !== "function") return;
 
     provider.on("connect", () => {
-      state.walletPubkey = provider.publicKey?.toString?.() || null;
-      renderWalletUI();
+      const pk = provider.publicKey?.toString?.();
+      if (pk) {
+        state.walletConnected = true;
+        state.walletPubkey = pk;
+        localStorage.setItem("tonfans_last_pubkey", pk);
+        renderActions();
+      }
     });
+
     provider.on("disconnect", () => {
+      state.walletConnected = false;
       state.walletPubkey = null;
-      renderWalletUI();
+      renderActions();
     });
-    provider.on("accountChanged", (pk) => {
-      state.walletPubkey = pk ? pk.toString() : null;
-      renderWalletUI();
+
+    provider.on("accountChanged", (pubkey) => {
+      const pk = pubkey?.toString?.() || provider.publicKey?.toString?.();
+      if (!pk) {
+        state.walletConnected = false;
+        state.walletPubkey = null;
+      } else {
+        state.walletConnected = true;
+        state.walletPubkey = pk;
+        localStorage.setItem("tonfans_last_pubkey", pk);
+      }
+      renderActions();
     });
   }
 
   // -----------------------------
-  // Tier selection
+  // DEPS LOADER (NO umi-signer-wallet-adapters)
   // -----------------------------
-  function normalizeTier(t) {
-    if (!t) return null;
-    // accept some legacy variants just in case
-    const map = {
-      "littlgen": "littlegen",
-      "littlegen": "littlegen",
-      "biggen": "biggen",
-      "littlgen-diamond": "littlegen_diamond",
-      "littlegen-diamond": "littlegen_diamond",
-      "littlgen_diamond": "littlegen_diamond",
-      "littlegen_diamond": "littlegen_diamond",
-      "biggen-diamond": "biggen_diamond",
-      "biggen_diamond": "biggen_diamond",
+  async function importFrom(urls) {
+    let lastErr = null;
+    for (const url of urls) {
+      try {
+        return await import(url);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error("Dynamic import failed");
+  }
+
+  async function dep(pkg, version) {
+    const v = version ? `@${version}` : "";
+    const urls = [
+      `https://esm.sh/${pkg}${v}?bundle&target=es2020`,
+      `https://esm.sh/${pkg}${v}?target=es2020`,
+      `https://cdn.jsdelivr.net/npm/${pkg}${v}/+esm`,
+    ];
+    return importFrom(urls);
+  }
+
+  async function loadDeps() {
+    if (state.depsPromise) return state.depsPromise;
+
+    state.depsPromise = (async () => {
+      try {
+        const web3 = await dep("@solana/web3.js", "1.95.2");
+        const umi = await dep("@metaplex-foundation/umi", "0.9.1");
+        const bundle = await dep("@metaplex-foundation/umi-bundle-defaults", "0.9.1");
+        const adapters = await dep("@metaplex-foundation/umi-web3js-adapters", "0.9.1");
+        const candy = await dep("@metaplex-foundation/mpl-candy-machine", "6.0.1");
+
+        return { web3, umi, bundle, adapters, candy };
+      } catch (e) {
+        console.error(LOG, "deps load failed:", e);
+        throw new Error(`${LOG} Failed to load mint dependencies (UMI/MPL). Try hard refresh / disable cache.`);
+      }
+    })();
+
+    return state.depsPromise;
+  }
+
+  // -----------------------------
+  // MINT
+  // -----------------------------
+  async function mintOnce() {
+    if (!state.selectedTier) throw new Error("Select tier first.");
+    const cmId = currentCandyMachine();
+    if (!cmId) throw new Error("Candy Machine is not set for this tier.");
+    if (!state.walletConnected || !state.walletPubkey) throw new Error("Wallet not connected.");
+
+    const { web3, umi, bundle, adapters, candy } = await loadDeps();
+
+    const { Connection, Keypair, ComputeBudgetProgram, PublicKey } = web3;
+    const connection = new Connection(RPC_URL, { commitment: "confirmed" });
+
+    const {
+      publicKey,
+      createNoopSigner,
+      signerIdentity,
+      some,
+      none,
+    } = umi;
+
+    const { createUmi } = bundle;
+
+    const { fromWeb3JsKeypair, toWeb3JsLegacyTransaction } = adapters;
+
+    const {
+      mplCandyMachine,
+      fetchCandyMachine,
+      safeFetchCandyGuard,
+      mintV2,
+    } = candy;
+
+    // UMI client
+    const umiClient = createUmi(RPC_URL, { commitment: "confirmed" }).use(mplCandyMachine());
+
+    // identity = wallet pubkey (no-op signer, wallet will sign in Phantom)
+    const walletPkUmi = publicKey(state.walletPubkey);
+    const noop = createNoopSigner(walletPkUmi);
+    umiClient.use(signerIdentity(noop));
+
+    // Fetch CM + Guard
+    const cmPk = publicKey(cmId);
+    const cm = await fetchCandyMachine(umiClient, cmPk);
+
+    const guardPk = cm.mintAuthority;
+    const guard = await safeFetchCandyGuard(umiClient, guardPk);
+
+    // New mint signer (NFT mint)
+    const nftMintKp = Keypair.generate();
+    const nftMintSigner = fromWeb3JsKeypair(umiClient, nftMintKp);
+
+    // Mint args for solPayment guard
+    const mintArgs = {
+      solPayment: some({ destination: publicKey(TREASURY_DESTINATION) }),
     };
-    return map[t] || t;
-  }
 
-  function setSelectedTier(tierRaw) {
-    const tier = normalizeTier(tierRaw);
-    if (!tier || !CM_BY_TIER[tier]) return;
-
-    state.selectedTier = tier;
-    try { localStorage.setItem("tonfans_selected_tier", tier); } catch (_) {}
-
-    // UI: tier-selected class on cards
-    const cards = $$(".tier-card[data-tier]");
-    for (const c of cards) {
-      const cTier = normalizeTier(c.getAttribute("data-tier"));
-      if (cTier === tier) c.classList.add("tier-selected");
-      else c.classList.remove("tier-selected");
-    }
-
-    setText($("#selectedTier"), tierLabel(tier));
-    setText($("#stickySelected"), tierLabel(tier));
-    setMintHint(`Selected: ${tierLabel(tier)}`);
-  }
-
-  function tierLabel(tier) {
-    switch (tier) {
-      case "littlegen": return "LittlGEN";
-      case "biggen": return "BigGEN";
-      case "littlegen_diamond": return "LittlGEN Diamond";
-      case "biggen_diamond": return "BigGEN Diamond";
-      default: return tier;
-    }
-  }
-
-  function initTierUI() {
-    // Restore
-    try {
-      const saved = localStorage.getItem("tonfans_selected_tier");
-      if (saved) state.selectedTier = normalizeTier(saved) || state.selectedTier;
-    } catch (_) {}
-
-    // Bind clicks
-    $$(".tier-card[data-tier]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        setSelectedTier(btn.getAttribute("data-tier"));
-      });
+    const builder = mintV2(umiClient, {
+      candyMachine: cmPk,
+      candyGuard: guard ? some(guardPk) : none(),
+      nftMint: nftMintSigner,
+      collectionMint: cm.collectionMint,
+      collectionUpdateAuthority: cm.collectionUpdateAuthority,
+      tokenStandard: cm.tokenStandard,
+      mintArgs: guard ? some(mintArgs) : none(),
     });
 
-    // Initial paint
-    setSelectedTier(state.selectedTier);
-  }
+    // Build UMI tx -> convert to web3 legacy tx
+    const umiTx = builder.build(umiClient);
+    const tx = toWeb3JsLegacyTransaction(umiTx);
 
-  // -----------------------------
-  // UI rendering
-  // -----------------------------
-  function renderWalletUI() {
-    const connected = Boolean(state.walletPubkey);
+    // Add compute budget (helps reliability)
+    tx.instructions.unshift(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 600000 })
+    );
+    tx.instructions.unshift(
+      ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1000 })
+    );
 
-    const connectBtn = $("#connectBtn");
-    const mintBtn = $("#mintBtn");
-    const stickyActionBtn = $("#stickyActionBtn");
+    // Populate blockhash + fee payer
+    const latest = await connection.getLatestBlockhash("confirmed");
+    tx.recentBlockhash = latest.blockhash;
+    tx.feePayer = new PublicKey(state.walletPubkey);
 
-    if (connectBtn) {
-      connectBtn.textContent = connected ? `Connected: ${shortPk(state.walletPubkey)}` : "Connect Phantom";
-      connectBtn.classList.toggle("btn-disabled", connected);
-      connectBtn.disabled = connected;
-    }
+    // Partial sign with mint keypair (required)
+    tx.partialSign(nftMintKp);
 
-    if (mintBtn) {
-      mintBtn.disabled = !connected || state.isMinting;
-      mintBtn.classList.toggle("btn-disabled", !connected || state.isMinting);
-    }
+    // Wallet sign + send
+    const provider = getProvider();
+    if (!provider) throw new Error("No wallet provider.");
 
-    if (stickyActionBtn) {
-      stickyActionBtn.textContent = connected ? (state.isMinting ? "Minting…" : "Mint now") : "Connect";
-      stickyActionBtn.disabled = state.isMinting;
-      stickyActionBtn.classList.toggle("btn-disabled", state.isMinting);
-    }
-
-    // If not connected show a clear hint
-    if (!connected) {
-      setMintHint("Connect Phantom to mint. (Devnet — ensure you have DEVNET SOL)");
+    let sig;
+    if (typeof provider.signAndSendTransaction === "function") {
+      const res = await provider.signAndSendTransaction(tx, { preflightCommitment: "confirmed", maxRetries: 5 });
+      sig = typeof res === "string" ? res : res?.signature;
+    } else if (typeof provider.signTransaction === "function") {
+      const signed = await provider.signTransaction(tx);
+      sig = await connection.sendRawTransaction(signed.serialize(), { maxRetries: 5 });
     } else {
-      setMintHint(`Ready. Mint from: ${tierLabel(state.selectedTier)} (Devnet)`);
+      throw new Error("Wallet does not support signAndSendTransaction/signTransaction.");
     }
+
+    // Confirm
+    await connection.confirmTransaction(
+      { signature: sig, blockhash: latest.blockhash, lastValidBlockHeight: latest.lastValidBlockHeight },
+      "confirmed"
+    );
+
+    return sig;
   }
 
-  // -----------------------------
-  // Mint core
-  // -----------------------------
-  async function mintSelectedTier() {
+  async function mintNow() {
     if (state.isMinting) return;
-    setMintError("");
-
-    const provider = state.wallet || getProvider();
-    if (!provider || !provider.isPhantom) {
-      setWalletStatus("Phantom wallet not found.", "err");
-      throw new Error("Phantom wallet not found");
-    }
-
-    // Ensure connected
-    if (!state.walletPubkey) {
-      await connectWallet();
-    }
-    if (!state.walletPubkey) throw new Error("Wallet not connected");
-
-    const tier = normalizeTier(state.selectedTier);
-    const cmId = CM_BY_TIER[tier];
-    if (!cmId) throw new Error(`Unknown tier "${tier}"`);
 
     state.isMinting = true;
-    renderWalletUI();
+    renderActions();
 
     try {
-      const d = await deps();
-      const {
-        createUmi,
-        publicKey,
-        some,
-        transactionBuilder,
-        signerIdentity,
-        createNoopSigner,
-        createSignerFromKeypair,
-        toWeb3JsLegacyTransaction,
-        fromWeb3JsKeypair,
-        mplCandyMachine,
-        fetchCandyMachine,
-        safeFetchCandyGuard,
-        mintV2,
-        web3,
-      } = d;
+      const qty = Math.max(1, Number(state.qty || 1));
+      let lastSig = null;
 
-      const { Connection, Keypair, ComputeBudgetProgram } = web3;
-
-      // web3 connection (send/confirm)
-      const connection = new Connection(RPC, "confirmed");
-
-      // Build Umi client (no wallet-adapter; identity is a NOOP signer with wallet pubkey)
-      const umi = createUmi(RPC).use(mplCandyMachine());
-
-      const walletPkUmi = publicKey(state.walletPubkey);
-      umi.use(signerIdentity(createNoopSigner(walletPkUmi)));
-
-      // Fetch CM & Guard
-      setMintHint(`Loading Candy Machine (${tierLabel(tier)})…`);
-      const candyMachinePk = publicKey(cmId);
-      const candyMachine = await fetchCandyMachine(umi, candyMachinePk);
-      const candyGuard = await safeFetchCandyGuard(umi, candyMachine.mintAuthority);
-
-      // Mint signer (we keep the web3 keypair so we can partialSign after we add compute budget)
-      const nftMintKp = Keypair.generate();
-      const nftMintUmiKeypair = fromWeb3JsKeypair(nftMintKp);
-      const nftMintSigner = createSignerFromKeypair(umi, nftMintUmiKeypair);
-
-      // Mint args (solPayment destination must match guard config; in Sugar it's your funding address)
-      const mintArgs = {};
-      if (candyGuard) {
-        mintArgs.solPayment = some({ destination: publicKey(TREASURY_DESTINATION) });
+      for (let i = 1; i <= qty; i++) {
+        safeText(els.mintHint, `Minting ${i}/${qty}… confirm in wallet.`);
+        const sig = await mintOnce();
+        lastSig = sig;
+        safeHTML(
+          els.mintHint,
+          `✅ Minted ${i}/${qty}. Tx: <a href="${explorerTx(sig)}" target="_blank" rel="noreferrer">${shortPk(sig)}</a>`
+        );
       }
 
-      // Latest blockhash (web3js) — ensures tx is fresh
-      const { blockhash } = await connection.getLatestBlockhash("confirmed");
-
-      // Build tx via Umi (no signatures yet)
-      setMintHint("Building mint transaction…");
-      const builder = transactionBuilder().add(
-        mintV2(umi, {
-          candyMachine: candyMachine.publicKey,
-          collectionMint: candyMachine.collectionMint,
-          collectionUpdateAuthority: candyMachine.authority,
-          nftMint: nftMintSigner,
-          candyGuard: candyGuard ? candyGuard.publicKey : undefined,
-          mintArgs: candyGuard ? mintArgs : undefined,
-          tokenStandard: candyMachine.tokenStandard,
-        })
-      );
-
-      // Build Umi tx and convert to legacy web3 tx
-      const umiTx = builder.setBlockhash(blockhash).build(umi);
-      let tx = toWeb3JsLegacyTransaction(umiTx);
-
-      // Ensure payer & blockhash (belt-and-suspenders)
-      tx.feePayer = provider.publicKey;
-      tx.recentBlockhash = blockhash;
-
-      // Add compute budget instruction FIRST (before signing)
-      tx.instructions.unshift(
-        ComputeBudgetProgram.setComputeUnitLimit({ units: 800_000 })
-      );
-
-      // Sign with mint keypair (creates mint account)
-      tx.partialSign(nftMintKp);
-
-      // Wallet signs and sends (Phantom)
-      setMintHint("Phantom: approve the mint transaction…");
-      const signedTx = await provider.signTransaction(tx);
-
-      setMintHint("Sending transaction…");
-      const sig = await connection.sendRawTransaction(signedTx.serialize(), {
-        skipPreflight: false,
-        preflightCommitment: "confirmed",
-      });
-
-      setMintHint(`Confirming… ${sig.slice(0, 8)}…`);
-      const conf = await connection.confirmTransaction(sig, "confirmed");
-      if (conf?.value?.err) throw new Error(`Transaction failed: ${JSON.stringify(conf.value.err)}`);
-
-      setMintHint(`✅ Mint successful: ${sig}`);
+      return lastSig;
     } catch (e) {
-      setMintError(e?.message || String(e));
-      setMintHint("Mint failed.");
-      console.error("[TONFANS] Mint error:", e);
+      console.error(LOG, "mint failed:", e);
+      safeText(els.mintHint, `Error: ${e?.message || String(e)}`);
       throw e;
     } finally {
       state.isMinting = false;
-      renderWalletUI();
+      renderActions();
     }
   }
 
   // -----------------------------
-  // Bind buttons
+  // BIND UI EVENTS
   // -----------------------------
-  function initButtons() {
-    const connectBtn = $("#connectBtn");
-    const mintBtn = $("#mintBtn");
-    const stickyActionBtn = $("#stickyActionBtn");
-
-    if (connectBtn && !connectBtn.__tonfansBound) {
-      connectBtn.__tonfansBound = true;
-      connectBtn.addEventListener("click", async () => {
-        try { await connectWallet(); } catch (e) { setMintError(e?.message || String(e)); }
+  function bindUI() {
+    // tier cards
+    if (els.tierCards && els.tierCards.length) {
+      els.tierCards.forEach((card) => {
+        card.addEventListener("click", () => {
+          const t = card.getAttribute("data-tier");
+          setSelectedTier(t);
+        });
       });
     }
 
-    if (mintBtn && !mintBtn.__tonfansBound) {
-      mintBtn.__tonfansBound = true;
-      mintBtn.addEventListener("click", async () => {
-        try { await mintSelectedTier(); } catch (_) {}
+    // qty buttons
+    if (els.qtyMinus) els.qtyMinus.addEventListener("click", () => setQty((state.qty || 1) - 1));
+    if (els.qtyPlus) els.qtyPlus.addEventListener("click", () => setQty((state.qty || 1) + 1));
+
+    // connect / disconnect
+    if (els.connectBtn && els.disconnectBtn) {
+      els.connectBtn.addEventListener("click", () => connectWallet({ silent: false }).catch((e) => safeText(els.mintHint, `Error: ${e.message}`)));
+      els.disconnectBtn.addEventListener("click", () => disconnectWallet());
+    } else if (els.connectBtn && !els.disconnectBtn) {
+      // toggle mode
+      els.connectBtn.addEventListener("click", async () => {
+        if (state.walletConnected) return disconnectWallet();
+        return connectWallet({ silent: false }).catch((e) => safeText(els.mintHint, `Error: ${e.message}`));
       });
     }
 
-    if (stickyActionBtn && !stickyActionBtn.__tonfansBound) {
-      stickyActionBtn.__tonfansBound = true;
-      stickyActionBtn.addEventListener("click", async () => {
+    // mint
+    if (els.mintBtn) {
+      els.mintBtn.addEventListener("click", () => mintNow().catch(() => {}));
+    }
+
+    // sticky action
+    if (els.stickyActionBtn) {
+      els.stickyActionBtn.addEventListener("click", async () => {
         try {
-          if (!state.walletPubkey) await connectWallet();
-          else await mintSelectedTier();
+          if (!hasProvider()) {
+            const url = location.href;
+            const deeplink = `https://phantom.app/ul/browse/${encodeURIComponent(url)}?ref=${encodeURIComponent(location.host)}`;
+            window.open(deeplink, "_blank");
+            return;
+          }
+          if (!state.walletConnected) {
+            await connectWallet({ silent: false });
+            return;
+          }
+          if (!currentCandyMachine()) return;
+          await mintNow();
         } catch (e) {
-          setMintError(e?.message || String(e));
+          safeText(els.mintHint, `Error: ${e?.message || String(e)}`);
         }
       });
     }
-
-    // Optional: allow disconnect via clicking the wallet status while connected (handy for testing)
-    const walletStatus = $("#walletStatus");
-    if (walletStatus && !walletStatus.__tonfansBound) {
-      walletStatus.__tonfansBound = true;
-      walletStatus.addEventListener("dblclick", async () => {
-        if (state.walletPubkey) await disconnectWallet();
-      });
-    }
   }
 
   // -----------------------------
-  // Init
+  // INIT
   // -----------------------------
+  function initDefaultTier() {
+    const saved = localStorage.getItem("tonfans_selected_tier");
+    const first = saved && TIERS[saved] ? saved : Object.keys(TIERS)[0];
+    if (first) setSelectedTier(first, { silent: true });
+  }
+
+  async function tryAutoConnect() {
+    const should = localStorage.getItem("tonfans_autoconnect") === "1";
+    if (!should) return;
+    if (!hasProvider()) return;
+    try {
+      await connectWallet({ silent: true });
+    } catch (_) {
+      // silent
+    }
+  }
+
   function init() {
-    bindWalletEvents();
-    initTierUI();
-    initButtons();
+    // Ensure UI won't be blocked by ui.js old logic
+    window.CANDY_MACHINE_ADDRESS = window.CANDY_MACHINE_ADDRESS || "";
 
-    // Try silent connect (trusted)
-    const provider = getProvider();
-    if (provider?.isPhantom) {
-      provider.connect({ onlyIfTrusted: true }).then(() => {
-        state.wallet = provider;
-        state.walletPubkey = provider.publicKey?.toString?.() || null;
-        if (state.walletPubkey) setWalletStatus(`Connected: ${shortPk(state.walletPubkey)} (${CLUSTER})`, "ok");
-        renderWalletUI();
-      }).catch(() => {
-        setWalletStatus(`Not connected (${CLUSTER})`, "warn");
-        renderWalletUI();
-      });
-    } else {
-      setWalletStatus("Not connected (Phantom not detected)", "warn");
-      renderWalletUI();
-    }
+    initDefaultTier();
+    setQty(Number(els.qtyValue?.textContent || 1));
+
+    bindUI();
+    bindWalletEvents();
+
+    renderHealth();
+    renderActions();
+
+    // sticky bar visible after tier selection; keep hidden initially if your layout expects it
+    // showStickyBar(); // uncomment if you want it always visible
+
+    tryAutoConnect().finally(() => renderActions());
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
-  else init();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 
-  // Expose small debug surface
-  window.TONFANS = window.TONFANS || {};
-  window.TONFANS.__state = state;
-  window.TONFANS.__mint = mintSelectedTier;
-  window.TONFANS.__setTier = setSelectedTier;
 })();
