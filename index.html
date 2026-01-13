@@ -1,20 +1,20 @@
-<!doctype html>  
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TON Fans — Mint on Solana</title>
-  <meta name="description" content="TON coin aesthetics, minted on Solana. 1,370 supply. 4 tiers with transparent pricing. Inspired by π." />
+  <meta name="description" content="TON coin aesthetics, minted on Solana. 1,270 supply. 4 tiers with transparent pricing. Inspired by π." />
 
   <meta property="og:title" content="TON Fans — Mint on Solana" />
-  <meta property="og:description" content="TON coin aesthetics, minted on Solana. 1,370 supply. 4 tiers. Inspired by π." />
+  <meta property="og:description" content="TON coin aesthetics, minted on Solana. 1,270 supply. 4 tiers. Inspired by π." />
   <meta property="og:image" content="static/og.png" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="" />
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="TON Fans — Mint on Solana" />
-  <meta name="twitter:description" content="TON coin aesthetics, minted on Solana. 1,370 supply. 4 tiers. Inspired by π." />
+  <meta name="twitter:description" content="TON coin aesthetics, minted on Solana. 1,270 supply. 4 tiers. Inspired by π." />
   <meta name="twitter:image" content="static/og.png" />
 
   <link rel="icon" href="static/ton.png" />
@@ -93,7 +93,31 @@
       color:rgba(220,248,255,.95);
       padding:.25rem .55rem;border-radius:9999px;font-size:.75rem;font-weight:700;
     }
-  </style>
+  
+/* Subtle status dots on pills (Apple-level) */
+.pills .pill{ position: relative; }
+.pills .pill.connected::before{
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  display: inline-block;
+  margin-right: 8px;
+  background: var(--good);
+  box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.35);
+  animation: dotPulse 1.4s infinite;
+  transform: translateY(-0.5px);
+}
+@keyframes dotPulse{
+  0%{ box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.28); }
+  70%{ box-shadow: 0 0 0 8px rgba(46, 204, 113, 0.0); }
+  100%{ box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.0); }
+}
+/* extra subtle tint for Ready=Yes */
+.pills .pill.ready-yes{
+  border-color: rgba(46, 204, 113, 0.35);
+  background: rgba(46, 204, 113, 0.06);
+}
+</style>
   <link rel="stylesheet" href="assets/css/components.css" />
 </head>
 
@@ -138,9 +162,9 @@
     <div class="max-w-6xl mx-auto px-4 pt-14 pb-12 md:pt-20 md:pb-16 grid md:grid-cols-2 gap-10 items-center relative">
       <div>
         <div class="flex flex-wrap gap-2">
-          <span class="pill">1,370 supply</span>
+          <span class="pill">1,270 supply</span>
           <span class="pill">4 tiers</span>
-          <span class="pill">Big Diamond: 185 only</span>
+          <span class="pill">Big Diamond: 85 only</span>
           <span class="pill">Royalties: 5%</span>
         </div>
 
@@ -329,12 +353,12 @@
       <button class="text-left card p-6 tier-card" data-tier="biggen_diamond">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <div class="flex items-center gap-2 flex-wrap">
+            <div class="flex items-center gap-2">
               <div class="text-sm uppercase tracking-widest muted2">BigGEN Diamond</div>
-              <span class="tier-badge">185 only</span>
+              <span class="tier-badge">85 only</span>
             </div>
             <div class="mt-1 text-3xl font-extrabold">0.20 SOL</div>
-            <div class="mt-1 text-sm muted2">Supply: 185</div>
+            <div class="mt-1 text-sm muted2">Supply: 85</div>
           </div>
           <img src="static/sample2.png" alt="BigGEN Diamond sample" class="w-24 h-24 rounded-xl ring-1 ring-white/10 object-cover"/>
         </div>
@@ -440,7 +464,7 @@
       <div class="mt-7 grid md:grid-cols-2 gap-4">
         <div class="card p-5">
           <div class="text-xs uppercase tracking-widest muted2">Total supply</div>
-          <div class="mt-1 text-2xl font-extrabold">1,370</div>
+          <div class="mt-1 text-2xl font-extrabold">1,270</div>
           <div class="mt-2 text-sm muted2">Royalties: 5%</div>
         </div>
 
@@ -552,9 +576,10 @@
           <div class="mt-1 flex flex-wrap gap-2 justify-start md:justify-end">
             <div class="pill"><span class="muted">Network</span> <strong id="netPill">Mainnet</strong></div>
             <div class="pill"><span class="muted">Wallet</span> <strong id="walletPill">Not connected</strong></div>
-            <div class="pill"><span class="muted">Ready</span> <strong id="readyPill">No</strong></div>
+            <div class="pill"><span class="muted">Ready</span> <strong id="readyPill" class="text-yellow-400">No</strong></div>
           </div>
         </div>
+      </div>
       </div>
 
       <div class="mt-8 grid md:grid-cols-3 gap-4">
@@ -633,7 +658,7 @@
 
         <div class="card p-5">
           <div class="font-semibold">What makes Diamond tiers different?</div>
-          <p class="mt-2 muted text-sm">They have clearly visible premium details (crystal ring + center split). Big Diamond is the rarest tier (185 supply).</p>
+          <p class="mt-2 muted text-sm">They have clearly visible premium details (crystal ring + center split). Big Diamond is the rarest tier (85 supply).</p>
         </div>
 
         <div class="card p-5">
@@ -680,9 +705,12 @@
       </div>
     </div>
   </div>
-  <!-- Mint & wallet logic moved to assets/js/mint.js -->
+
+  <!-- UI interactions -->
+  <script src="assets/js/ui.js"></script>
+
+  <!-- Mint & wallet logic -->
   <script type="module" src="assets/js/mint.js"></script>
-<script src="assets/js/ui.js"></script>
+
 </body>
 </html>
- 
