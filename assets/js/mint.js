@@ -48,10 +48,10 @@ const CM_RPC =
 
 // ✅ EACH TIER HAS ITS OWN CANDY MACHINE
 const CM_BY_TIER = {
-  littlegen: "",           // LGEN CM address (after sugar deploy)
-  biggen: "",              // BGEN CM address (after sugar deploy)
-  littlegen_diamond: "",   // LDIA CM address (after sugar deploy)
-  biggen_diamond: ""       // BDIA CM address (after sugar deploy)
+  littlegen: "Hr9YzscC71vdHifZR4jRvMd8JmmGxbJrS6j7QckEVqKy",         // LGEN (500) DEVNET
+  biggen: "Ewhn2nJV6tbvq59GMahyWmS54jQWL4n3mrsoVM8n8GHH",            // BGEN (500) DEVNET
+  littlegen_diamond: "8L5MLvbvM9EsZ8nb1NAwqzEXuVsiq5x5fHGNKchz6UQR", // LDIA (185) DEVNET
+  biggen_diamond: "EyjoAcKwkfNo8NqCZczHHnNSi3ccYpnCetkBUwbqCien"     // BDIA (185) DEVNET
 };
 
 // ---- Original inline script (wallet UX + tier selection + sticky bar etc.) ----
@@ -68,7 +68,7 @@ const CM_BY_TIER = {
       littlegen: { label: "LittlGEN", price: 0.10, supply: 500, cm: "littlegen" },
       biggen: { label: "BigGEN", price: 0.125, supply: 500, cm: "biggen" },
       littlegen_diamond: { label: "LittlGEN Diamond", price: 0.15, supply: 185, cm: "littlegen_diamond" },
-      biggen_diamond: { label: "BigGEN Diamond", price: 0.20, supply: 85, cm: "biggen_diamond" },
+      biggen_diamond: { label: "BigGEN Diamond", price: 0.20, supply: 185, cm: "biggen_diamond" },
     };
 
     // State
@@ -297,7 +297,7 @@ const CM_BY_TIER = {
       const hasWallet = isWalletConnected();
       const isReady = hasWallet;
 
-      if (netPill) netPill.textContent = "Mainnet";
+      if (netPill) netPill.textContent = (CM_CLUSTER === "devnet" ? "Devnet" : "Mainnet");
       if (walletPill) {
         walletPill.textContent = hasWallet && walletState.pubkey ? (walletState.pubkey.slice(0,4) + "…" + walletState.pubkey.slice(-4)) : "Not connected";
       }
@@ -432,13 +432,15 @@ const CM_BY_TIER = {
         cluster: CM_CLUSTER === "devnet" ? "devnet" : "mainnet-beta",
         autoconnect: "1"
       });
-      return `https://phantom.app/ul/browse/${url}?${params.toString()}`;
+      const enc = encodeURIComponent(url);
+      return `https://phantom.app/ul/browse/${enc}?${params.toString()}`;
     }
 
 // ---- Candy Machine mint integration (4 CM) ----
 
 function phantomAdapter(provider) {
-  return {
+  // Minimal WalletAdapter wrapper for Phantom provider (UMI walletAdapterIdentity)
+  const adapter = {
     name: "Phantom",
     url: "https://phantom.app",
     icon: "https://phantom.app/favicon.ico",
@@ -446,22 +448,27 @@ function phantomAdapter(provider) {
     publicKey: provider.publicKey || null,
     connecting: false,
     connected: !!provider.publicKey,
+
     connect: async () => {
       const res = await provider.connect();
       adapter.publicKey = provider.publicKey || res?.publicKey || null;
       adapter.connected = !!adapter.publicKey;
       return res;
     },
+
     disconnect: async () => {
       await provider.disconnect();
       adapter.publicKey = null;
       adapter.connected = false;
     },
+
     signTransaction: async (tx) => provider.signTransaction(tx),
     signAllTransactions: async (txs) => provider.signAllTransactions(txs),
     signMessage: async (msg) => provider.signMessage(msg),
     on: (event, handler) => provider.on?.(event, handler),
   };
+
+  return adapter;
 }
 
 async function mintFromSelectedTier() {
