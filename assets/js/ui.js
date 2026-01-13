@@ -1,225 +1,314 @@
-/*
-  TON Fans — subtle UI enhancements
-  - Micro-effects on cards (border glow + glass sweep)
-  - Reveal-on-scroll for sections
-  - Copy buttons with toast feedback
-*/
-
+// assets/js/ui.js
 (() => {
-  const qsa = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-
-  // ---------- Toast ----------
-  const ensureToast = () => {
-    let el = document.getElementById('toast');
-    if (el) return el;
-
-    el = document.createElement('div');
-    el.id = 'toast';
-    el.className = 'toast';
-    el.innerHTML = '<span class="toast-dot"></span><span id="toastText">Copied</span>';
-    document.body.appendChild(el);
-    return el;
+  const STATE = {
+    tier: null,            // 'lgen' | 'bgen' | 'ldia' | 'bdia'
+    walletConnected: false,
+    walletLabel: "Not connected",
+    networkLabel: "—",
+    ready: false,
+    priceLabel: "—",
   };
 
-  let toastTimer = null;
-  const showToast = (msg) => {
-    const el = ensureToast();
-    const txt = el.querySelector('#toastText');
-    if (txt) txt.textContent = msg;
+  // -------- helpers
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-    el.classList.add('toast--show');
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('toast--show'), 1200);
-  };
+  const safeText = (el, t) => { if (el) el.textContent = t; };
+  const safeShow = (el, on) => { if (el) el.style.display = on ? "" : "none"; };
 
-  // Clipboard helper with fallback
-  const copyToClipboard = async (text) => {
-    try {
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-        await navigator.clipboard.writeText(text);
-        return true;
+  function injectStyles() {
+    if ($("#tonfans-ui-style")) return;
+    const s = document.createElement("style");
+    s.id = "tonfans-ui-style";
+    s.textContent = `
+      .tonfans-tier-selected{
+        outline: 2px solid rgba(0, 255, 209, .9);
+        outline-offset: 2px;
+        box-shadow: 0 0 0 6px rgba(0, 255, 209, .12);
+        border-radius: 18px;
       }
-    } catch (_) {}
+      .tonfans-disabled{
+        opacity: .55 !important;
+        pointer-events: none !important;
+        filter: grayscale(.2);
+      }
+      #tonfans-sticky{
+        position: fixed;
+        left: 16px;
+        right: 16px;
+        bottom: 14px;
+        z-index: 9999;
+        display: none;
+      }
+      #tonfans-sticky .tf-wrap{
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        background: rgba(10,16,24,.82);
+        border: 1px solid rgba(255,255,255,.08);
+        border-radius: 18px;
+        padding: 12px 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,.45);
+      }
+      #tonfans-sticky .tf-left{
+        flex: 1;
+        display:flex;
+        flex-direction:column;
+        gap:4px;
+        min-width: 0;
+      }
+      #tonfans-sticky .tf-title{
+        font-size: 12px;
+        opacity: .75;
+      }
+      #tonfans-sticky .tf-sub{
+        font-size: 14px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #tonfans-sticky button{
+        border-radius: 14px;
+      }
+    `;
+    document.head.appendChild(s);
+  }
 
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.setAttribute('readonly', '');
-      ta.style.position = 'fixed';
-      ta.style.top = '-9999px';
-      document.body.appendChild(ta);
-      ta.select();
-      const ok = document.execCommand('copy');
-      document.body.removeChild(ta);
-      return ok;
-    } catch (_) {
-      return false;
+  function ensureSticky() {
+    if ($("#tonfans-sticky")) return;
+
+    const wrap = document.createElement("div");
+    wrap.id = "tonfans-sticky";
+    wrap.innerHTML = `
+      <div class="tf-wrap">
+        <div class="tf-left">
+          <div class="tf-title">TON Fans</div>
+          <div class="tf-sub" id="tfStickyLine">Select tier → Connect → Mint</div>
+        </div>
+        <button id="tfStickyConnect" type="button">Connect</button>
+        <button id="tfStickyMint" type="button">Mint now</button>
+      </div>
+    `;
+    document.body.appendChild(wrap);
+
+    $("#tfStickyConnect").addEventListener("click", () => {
+      window.TONFANS?.mint?.toggleConnect?.();
+    });
+    $("#tfStickyMint").addEventListener("click", () => {
+      window.TONFANS?.mint?.mintNow?.();
+    });
+  }
+
+  // -------- element discovery (не завязано на твои конкретные id)
+  function findTopChipValue(labelText) {
+    // ищем "Wallet" / "Ready" / "Network" и берем соседний span/div
+    const candidates = $$("body *")
+      .filter(el => el && el.children && el.children.length >= 2)
+      .slice(0, 8000);
+
+    for (const el of candidates) {
+      const a = el.children[0];
+      const b = el.children[1];
+      if (!a || !b) continue;
+      const t = (a.textContent || "").trim().toLowerCase();
+      if (t === labelText.toLowerCase()) return b;
     }
-  };
+    return null;
+  }
 
-  // ---------- Card micro-effects ----------
-  const enhanceCards = () => {
-    // Add fx to div.card only (skip img.card etc.)
-    qsa('div.card').forEach((el) => el.classList.add('fx-card'));
-    // Buttons shouldn't sweep
-    qsa('.btn-primary, .btn-ghost').forEach((el) => el.classList.add('fx-no-sweep'));
-  };
+  function findMintButtons() {
+    // кнопки "Mint now" на странице
+    const btns = $$("button,a").filter(el => /mint now/i.test((el.textContent || "").trim()));
+    return btns;
+  }
 
-  // ---------- Reveal on scroll ----------
-  const setupReveal = () => {
-    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduceMotion) return;
+  function findConnectButtons() {
+    const btns = $$("button,a").filter(el => {
+      const tx = (el.textContent || "").trim().toLowerCase();
+      return tx === "connect" || tx.startsWith("connected:") || tx === "disconnect";
+    });
+    return btns;
+  }
 
-    // Reveal all anchors + explicitly marked sections
-    const targets = new Set([
-      ...qsa('section.anchor'),
-      ...qsa('section[data-reveal]'),
-    ]);
+  function findTierCards() {
+    // 1) если есть data-tier — супер
+    let cards = $$("[data-tier]");
+    if (cards.length) return cards;
 
-    // If a section has no .anchor but is clearly a content block, allow opt-in by data-reveal
-    targets.forEach((el) => el.classList.add('reveal'));
+    // 2) fallback: карточки где внутри текст LittlGEN/BigGEN
+    const all = $$("div,section,article");
+    cards = all.filter(el => {
+      const t = (el.textContent || "");
+      return /LittlGEN|BigGEN/i.test(t) && el.querySelector("button, a") == null;
+    });
+    // слишком много? режем
+    return cards.slice(0, 12);
+  }
 
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('reveal-in');
-            io.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.12, rootMargin: '0px 0px -8% 0px' }
-    );
+  function tierKeyFromCard(el) {
+    const dt = el.getAttribute("data-tier");
+    if (dt) return dt;
 
-    targets.forEach((el) => {
-      // If already in view on load, reveal immediately to avoid flicker
-      const r = el.getBoundingClientRect();
-      if (r.top < window.innerHeight * 0.9) {
-        el.classList.add('reveal-in');
+    const t = (el.textContent || "").toLowerCase();
+    const isLittle = t.includes("littlgen");
+    const isBig = t.includes("biggen");
+    const isDiamond = t.includes("diamond");
+
+    if (isLittle && isDiamond) return "ldia";
+    if (isBig && isDiamond) return "bdia";
+    if (isLittle) return "lgen";
+    if (isBig) return "bgen";
+    return null;
+  }
+
+  // -------- render
+  function recomputeReady() {
+    STATE.ready = Boolean(STATE.walletConnected && STATE.tier);
+  }
+
+  function render() {
+    recomputeReady();
+
+    // верхние чипы
+    const topWallet = findTopChipValue("Wallet");
+    const topReady = findTopChipValue("Ready");
+    const topNet = findTopChipValue("Network");
+
+    safeText(topWallet, STATE.walletConnected ? STATE.walletLabel : "Not connected");
+    safeText(topReady, STATE.ready ? "Yes" : "No");
+    safeText(topNet, STATE.networkLabel || "—");
+
+    // selected tier box (если есть)
+    const selTierName = $("#selectedTierName") || $(".selected-tier-name");
+    const selGuard = $("#selectedTierGuard") || $(".selected-tier-guard");
+    if (selTierName) safeText(selTierName, STATE.tier ? STATE.tier.toUpperCase() : "—");
+    if (selGuard) safeText(selGuard, STATE.tier ? "guard: default" : "guard: —");
+
+    // price
+    const priceEl = $("#mintPrice") || $("#priceValue") || $(".price-value");
+    if (priceEl) safeText(priceEl, STATE.priceLabel || "—");
+
+    // кнопки connect/disconnect
+    const connectBtns = findConnectButtons();
+    connectBtns.forEach(b => {
+      if (!STATE.walletConnected) {
+        b.textContent = "Connect";
+        b.classList.remove("tonfans-disabled");
       } else {
-        io.observe(el);
+        // делаем как у тебя было: Connected: ...
+        b.textContent = `Connected: ${STATE.walletLabel}`;
+        b.classList.remove("tonfans-disabled");
       }
     });
-  };
 
-  // ---------- Copy buttons ----------
-  const setupCopyButtons = () => {
-    qsa('[data-copy]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-copy');
-        const el = id ? document.getElementById(id) : null;
-        const text = (el?.textContent || '').trim();
+    // mint кнопки
+    const mintBtns = findMintButtons();
+    mintBtns.forEach(b => {
+      if (STATE.ready) b.classList.remove("tonfans-disabled");
+      else b.classList.add("tonfans-disabled");
+    });
 
-        if (!text || text === 'TBD') {
-          showToast('Not set yet');
-          return;
-        }
+    // sticky line
+    const stickyLine = $("#tfStickyLine");
+    if (stickyLine) {
+      stickyLine.textContent = STATE.walletConnected
+        ? (STATE.tier ? `Tier: ${STATE.tier.toUpperCase()} • ${STATE.walletLabel}` : `Select tier • ${STATE.walletLabel}`)
+        : "Select tier → Connect → Mint";
+    }
 
-        const ok = await copyToClipboard(text);
-        if (ok) {
-          const prev = btn.textContent;
-          btn.textContent = 'Copied';
-          showToast('Copied');
-          setTimeout(() => (btn.textContent = prev), 900);
-        } else {
-          showToast('Copy failed');
-        }
+    // sticky buttons state
+    const stMint = $("#tfStickyMint");
+    const stConn = $("#tfStickyConnect");
+    if (stConn) stConn.textContent = STATE.walletConnected ? `Connected: ${STATE.walletLabel}` : "Connect";
+    if (stMint) {
+      if (STATE.ready) stMint.classList.remove("tonfans-disabled");
+      else stMint.classList.add("tonfans-disabled");
+    }
+  }
+
+  // -------- tier selection UI
+  function setSelectedTier(tier) {
+    STATE.tier = tier;
+
+    const cards = findTierCards();
+    cards.forEach(c => c.classList.remove("tonfans-tier-selected"));
+
+    const selected = cards.find(c => tierKeyFromCard(c) === tier);
+    if (selected) selected.classList.add("tonfans-tier-selected");
+
+    // сообщаем mint-скрипту
+    window.dispatchEvent(new CustomEvent("tonfans:tier", { detail: { tier } }));
+    render();
+  }
+
+  function wireTierClicks() {
+    const cards = findTierCards();
+    cards.forEach(card => {
+      card.style.cursor = "pointer";
+      card.addEventListener("click", () => {
+        const tier = tierKeyFromCard(card);
+        if (tier) setSelectedTier(tier);
       });
     });
-  };
+  }
 
-  
-  // ---------- Section focus pulse (Jobs-level) ----------
-  const setupSectionFocus = () => {
-    const flash = (id) => {
-      if (!id) return;
-      const el = document.getElementById(id);
-      if (!el) return;
-      // restart animation cleanly
-      el.classList.remove('section-flash');
-      // eslint-disable-next-line no-unused-expressions
-      void el.offsetWidth;
-      el.classList.add('section-flash');
-      window.setTimeout(() => el.classList.remove('section-flash'), 900);
-    };
-
-    // Anchors like <a href="#tiers">
-    document.addEventListener('click', (e) => {
-      const a = e.target?.closest?.('a[href^="#"]');
-      if (!a) return;
-      const href = a.getAttribute('href') || '';
-      const id = href.slice(1);
-      if (!id) return;
-      // only for real sections, avoid noisy flashes on tiny jumps
-      if (id === 'tiers' || id === 'mint') {
-        window.setTimeout(() => flash(id), 420);
-      }
-    });
-
-    // Buttons opting in via data-focus="tiers"
-    document.addEventListener('click', (e) => {
-      const btn = e.target?.closest?.('[data-focus]');
-      if (!btn) return;
-      const id = btn.getAttribute('data-focus');
-      if (!id) return;
-      window.setTimeout(() => flash(id), 420);
-    });
-
-    // If user lands with hash
-    window.addEventListener('hashchange', () => {
-      const id = (window.location.hash || '').replace('#', '');
-      if (id === 'tiers' || id === 'mint') {
-        window.setTimeout(() => flash(id), 260);
-      }
-    });
-  };
-
-
-
-// ---------- Sticky Mint Bar auto-hide when Mint CTA is visible (Apple-clean) ----------
-// Hide sticky quick-actions only when the primary Mint button is actually visible.
-// This avoids duplicated CTAs and feels cleaner than section-based suppression.
-const setupStickyAutoHide = () => {
-  const sticky = document.getElementById('stickyMintBar');
-  const mintBtn = document.getElementById('mintBtn');
-  if (!sticky || !mintBtn) return;
-
-  const apply = (hide) => {
-    if (hide) {
-      sticky.classList.add('sticky-suppressed');
-      document.body.classList.remove('has-sticky');
-    } else {
-      sticky.classList.remove('sticky-suppressed');
-      // Only add padding if sticky is actually shown
-      if (!sticky.classList.contains('hidden')) {
-        document.body.classList.add('has-sticky');
-      }
-    }
-  };
-
-  const io = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        // Hide when the actual Mint CTA is on screen.
-        apply(entry.isIntersecting);
+  function wireConnectClicks() {
+    // любая "Connect"/"Connected" кнопка будет toggle connect/disconnect
+    findConnectButtons().forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        window.TONFANS?.mint?.toggleConnect?.();
       });
-    },
-    {
-      threshold: 0.12,
-      // Slightly earlier suppression as the button approaches the viewport.
-      rootMargin: '0px 0px -18% 0px',
-    }
-  );
+    });
+  }
 
-  io.observe(mintBtn);
-};
-// ---------- Boot ----------
-  document.addEventListener('DOMContentLoaded', () => {
-    enhanceCards();
-    setupReveal();
-    setupCopyButtons();
-    setupSectionFocus();
-    setupStickyAutoHide();
+  function stickyVisibility() {
+    const sticky = $("#tonfans-sticky");
+    if (!sticky) return;
+
+    // если есть секция mint — используем её как триггер
+    const mintSection = $("#mint") || $("#section-mint") || document.querySelector("section");
+    const y = window.scrollY || 0;
+
+    let show = y > 420;
+    if (mintSection && mintSection.getBoundingClientRect) {
+      const r = mintSection.getBoundingClientRect();
+      // когда mint ушёл вверх — показываем
+      show = r.top < -80;
+    }
+    sticky.style.display = show ? "" : "none";
+  }
+
+  // -------- external state events from mint.js
+  window.addEventListener("tonfans:state", (e) => {
+    const d = e.detail || {};
+    if (typeof d.walletConnected === "boolean") STATE.walletConnected = d.walletConnected;
+    if (typeof d.walletLabel === "string") STATE.walletLabel = d.walletLabel;
+    if (typeof d.networkLabel === "string") STATE.networkLabel = d.networkLabel;
+    if (typeof d.priceLabel === "string") STATE.priceLabel = d.priceLabel;
+    if (typeof d.tier === "string") STATE.tier = d.tier;
+    render();
   });
+
+  // -------- init
+  function init() {
+    injectStyles();
+    ensureSticky();
+    wireTierClicks();
+    wireConnectClicks();
+    render();
+
+    window.addEventListener("scroll", stickyVisibility, { passive: true });
+    window.addEventListener("resize", stickyVisibility);
+    stickyVisibility();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();
- 
