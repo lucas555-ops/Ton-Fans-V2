@@ -1,11 +1,11 @@
-// assets/js/ui.js (v16) — TON Fans UI for your index.html
+// assets/js/ui.js (v17) — TON Fans UI for your index.html
 // Fixes:
 // - Quantity works with <div id="qty"> (not input) and clamps 1..3
 // - Price/Total show 3 decimals when needed (e.g. 0.125 / 0.375), otherwise 2 decimals
 // - Prevents duplicated pill labels
 // - Sticky bar stays in sync + mint triggers correctly
 (() => {
-  console.log("[TONFANS] ui.js v16 loaded");
+  console.log("[TONFANS] ui.js v17 loaded");
 
   const $ = (id) => document.getElementById(id);
 
