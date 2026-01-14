@@ -1,4 +1,4 @@
-// assets/js/mint.js (v15) — TON Fans (DEVNET)
+// assets/js/mint.js (v16) — TON Fans (DEVNET)
 // Fixes:
 // - RPC 403/CORS: hard devnet RPC list + failover
 // - More robust supply parsing (avoid false "Sold out" due to NaN/0 parsing)
@@ -7,6 +7,7 @@
 
 const DEVNET_RPCS = [
   "https://api.devnet.solana.com",
+  // Fallback (some providers can rate-limit / return non-standard payloads)
   "https://rpc.ankr.com/solana_devnet",
 ];
 
@@ -164,6 +165,15 @@ function attachWalletIdentity(){
 }
 
 // -------- value helpers
+function isRecentBlockhashFailed(err){
+  const m = String(err?.message || err || "");
+  return m.includes("failed to get recent blockhash")
+      || m.includes("Expected the value to satisfy a union")
+      || m.includes("expected the value to satisfy a union")
+      || m.includes("union of `type | type`")
+      || m.includes("union of `type | type`");
+}
+
 function isBlockhashNotFound(err){
   const m = String(err?.message || err || "").toLowerCase();
   return m.includes("blockhash not found") || m.includes("blockhashnotfound");
@@ -504,8 +514,8 @@ async function mintNow(qty=1){
       try {
         await builder.sendAndConfirm(umi);
       } catch (e) {
-        if (isBlockhashNotFound(e)) {
-          setHint("Blockhash expired — retrying with fresh blockhash…", "info");
+        if (isBlockhashNotFound(e) || isRecentBlockhashFailed(e)) {
+          setHint("RPC/blockhash hiccup — retrying with fresh blockhash…", "info");
           try { await rotateRpc(); } catch {}
           // rebuild and try once more
           const builder2 = sdk.transactionBuilder()
