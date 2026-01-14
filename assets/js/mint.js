@@ -1,12 +1,45 @@
-// Ton Fans — 4 Candy Machines Mint Flow
+// Ton Fans — 4 Candy Machines Mint Flow   
 // One Candy Machine per tier (cleanest production setup)
 
-import { createUmi } from "https://esm.sh/@metaplex-foundation/umi-bundle-defaults@1.0.1";
-import { mplCandyMachine, fetchCandyMachine, mintV2 } from "https://esm.sh/@metaplex-foundation/mpl-candy-machine@6.0.0";
-import { mplTokenMetadata, fetchDigitalAsset } from "https://esm.sh/@metaplex-foundation/mpl-token-metadata@3.4.0";
-import { walletAdapterIdentity } from "https://esm.sh/@metaplex-foundation/umi-signer-wallet-adapters@0.9.1";
-import { setComputeUnitLimit } from "https://esm.sh/@metaplex-foundation/mpl-toolbox@0.9.1";
-import { generateSigner, publicKey, some, transactionBuilder } from "https://esm.sh/@metaplex-foundation/umi@1.0.1";
+
+
+// ---- Lazy-load UMI + Candy Machine deps (keeps wallet connect + tier UI working even if CDNs are slow) ----
+let __TONFANS_DEPS_PROMISE__ = null;
+async function loadTonfansDeps() {
+  if (__TONFANS_DEPS_PROMISE__) return __TONFANS_DEPS_PROMISE__;
+  __TONFANS_DEPS_PROMISE__ = (async () => {
+    const [umiDefaults, cm, tm, wa, toolbox, umiCore] = await Promise.all([
+      import('https://esm.sh/@metaplex-foundation/umi-bundle-defaults@1.0.1'),
+      import('https://esm.sh/@metaplex-foundation/mpl-candy-machine@6.0.0'),
+      import('https://esm.sh/@metaplex-foundation/mpl-token-metadata@3.4.0'),
+      import('https://esm.sh/@metaplex-foundation/umi-signer-wallet-adapters@0.9.1'),
+      import('https://esm.sh/@metaplex-foundation/mpl-toolbox@0.9.1'),
+      import('https://esm.sh/@metaplex-foundation/umi@1.0.1'),
+    ]);
+
+    return {
+      // UMI
+      createUmi: umiDefaults.createUmi,
+      generateSigner: umiCore.generateSigner,
+      publicKey: umiCore.publicKey,
+      transactionBuilder: umiCore.transactionBuilder,
+
+      // Candy Machine
+      mplCandyMachine: cm.mplCandyMachine,
+      fetchCandyMachine: cm.fetchCandyMachine,
+      mintV2: cm.mintV2,
+
+      // Token Metadata plugin (required by CM)
+      mplTokenMetadata: tm.mplTokenMetadata,
+
+      // Wallet identity + compute units
+      walletAdapterIdentity: wa.walletAdapterIdentity,
+      setComputeUnitLimit: toolbox.setComputeUnitLimit,
+    };
+  })();
+
+  return __TONFANS_DEPS_PROMISE__;
+}
 
 // ---- 4 CANDY MACHINES CONFIG (EDIT THESE) ----
 const CM_CLUSTER = "devnet"; // "devnet" | "mainnet-beta"
@@ -452,6 +485,8 @@ async function mintFromSelectedTier() {
   mintBtn.classList.add("disabled");
 
   try {
+        const { createUmi, mplCandyMachine, fetchCandyMachine, mintV2, mplTokenMetadata, walletAdapterIdentity, setComputeUnitLimit, generateSigner, publicKey, transactionBuilder } = await loadTonfansDeps();
+
     const umi = createUmi(CM_RPC);
 
     const provider = getProvider();
