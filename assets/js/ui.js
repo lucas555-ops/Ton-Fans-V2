@@ -1,4 +1,4 @@
-// assets/js/ui.js (v9) — TON Fans UI for your index.html
+// assets/js/ui.js (v10) — TON Fans UI for your index.html
 // Fixes:
 // - Top pills: do NOT duplicate labels (Network/Wallet/Ready already present in HTML)
 // - Quantity max 3 enforced (plus/minus + input)
@@ -107,6 +107,17 @@
 
     // Quantity
     setQty(getQty());
+    // Disable +/- at bounds
+    if (els.qtyMinus) {
+      els.qtyMinus.disabled = getQty() <= 1;
+      els.qtyMinus.style.opacity = els.qtyMinus.disabled ? ".55" : "1";
+      els.qtyMinus.style.cursor = els.qtyMinus.disabled ? "not-allowed" : "pointer";
+    }
+    if (els.qtyPlus) {
+      els.qtyPlus.disabled = getQty() >= MAX_QTY;
+      els.qtyPlus.style.opacity = els.qtyPlus.disabled ? ".55" : "1";
+      els.qtyPlus.style.cursor = els.qtyPlus.disabled ? "not-allowed" : "pointer";
+    }
 
     // Price + total
     setText(els.price, fmt(s.priceSol));
@@ -172,18 +183,26 @@
     // qty
     if (els.qtyMinus) els.qtyMinus.addEventListener("click", (e) => {
       e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      if (els.qtyMinus.disabled) return;
       setQty(getQty() - 1);
       render(window.__TONFANS_STATE__ || {});
-    });
+    }, { capture: true });
     if (els.qtyPlus) els.qtyPlus.addEventListener("click", (e) => {
       e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      if (els.qtyPlus.disabled) return;
       setQty(getQty() + 1);
       render(window.__TONFANS_STATE__ || {});
-    });
-    if (els.qty) els.qty.addEventListener("input", () => {
+    }, { capture: true });
+    if (els.qty) els.qty.addEventListener("input", (e) => {
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
       setQty(getQty());
       render(window.__TONFANS_STATE__ || {});
-    });
+    }, { capture: true });
 
     // connect/disconnect
     if (els.connectBtn) els.connectBtn.addEventListener("click", (e) => {
@@ -198,19 +217,22 @@
     // mint main
     if (els.mintBtn) els.mintBtn.addEventListener("click", (e) => {
       e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
       mintApi()?.mintNow?.(getQty()).catch(()=>{});
-    });
+    }, { capture: true });
 
     // sticky action
     if (els.stickyActionBtn) els.stickyActionBtn.addEventListener("click", (e) => {
       e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
       const s = window.__TONFANS_STATE__ || {};
       const api = mintApi();
       if (!api) return;
-
       if (!s.walletConnected) api.toggleConnect?.().catch(()=>{});
       else api.mintNow?.(getQty()).catch(()=>{});
-    });
+    }, { capture: true });
 
     // sticky change tier
     if (els.stickyChangeBtn) els.stickyChangeBtn.addEventListener("click", (e) => {
