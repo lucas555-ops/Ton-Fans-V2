@@ -1,4 +1,4 @@
-// assets/js/mint.js (v16) — TON Fans (DEVNET)
+// assets/js/mint.js (v17) — TON Fans (DEVNET)
 // Fixes:
 // - RPC 403/CORS: hard devnet RPC list + failover
 // - More robust supply parsing (avoid false "Sold out" due to NaN/0 parsing)
@@ -120,6 +120,8 @@ async function loadSdk(){
     fetchCandyGuard: cmSdk.fetchCandyGuard,
     mintV2: cmSdk.mintV2,
     mplTokenMetadata: tmSdk.mplTokenMetadata,
+    findMetadataPda: tmSdk.findMetadataPda,
+    fetchMetadata: tmSdk.fetchMetadata,
     walletAdapterIdentity: waSdk.walletAdapterIdentity,
     setComputeUnitLimit: toolbox.setComputeUnitLimit,
   };
@@ -277,6 +279,32 @@ function extractSolPaymentLamports(guards){
   return bi;
 }
 
+function extractSolPaymentDestination(guards){
+  const sp = guards?.solPayment;
+  if (!sp) return null;
+
+  const kind = sp.__kind ?? sp.__option ?? null;
+  if (kind && String(kind).toLowerCase().includes("none")) return null;
+
+  const inner = sp.value ?? (Array.isArray(sp.fields) ? sp.fields[0] : null) ?? sp;
+
+  // Common shapes:
+  // - { destination: PublicKey }
+  // - { destinationAddress: PublicKey }
+  // - { destination: { publicKey: ... } } (rare)
+  const d = inner?.destination ?? inner?.destinationAddress ?? inner?.destination?.publicKey ?? null;
+
+  // Normalize to base58 string if possible
+  if (!d) return null;
+  if (typeof d === "string") return d;
+  if (typeof d === "object"){
+    if (typeof d.toString === "function") return String(d);
+    if (d.bytes) return String(d); // Umi PublicKey toString works
+  }
+  return null;
+}
+
+
 // -------- state
 const state = {
   cluster: CLUSTER,
@@ -300,6 +328,7 @@ const state = {
 
   // pricing
   priceSol: null,
+  solDestination: null,
   isFree: false,
 
   // flags
@@ -315,7 +344,35 @@ const state = {
 
 function getState(){ return JSON.parse(JSON.stringify(state)); }
 
-// -------- core
+// Resolve collection update authority safely (prevents CandyGuard PublicKeyMismatch)
+async function resolveCollectionUpdateAuthority(cm, collectionMint){
+  // Try direct fields first
+  const direct = cm?.collectionUpdateAuthority
+    ?? cm?.collection?.updateAuthority
+    ?? cm?.collection?.updateAuthorityAddress
+    ?? cm?.collectionUpdateAuthorityAddress
+    ?? null;
+
+  if (direct) return direct;
+
+  // Fallback: read updateAuthority from collection metadata (Token Metadata)
+  try {
+    await loadSdk();
+    if (!umi) await rebuildUmi();
+    const sdk = SDK;
+
+    if (!sdk.findMetadataPda || !sdk.fetchMetadata) return null;
+
+    const mintPk = (typeof collectionMint === "string") ? sdk.publicKey(collectionMint) : collectionMint;
+    const mdPda = sdk.findMetadataPda(umi, { mint: mintPk });
+    const md = await withFailover(async () => await sdk.fetchMetadata(umi, mdPda));
+    return md?.updateAuthority ?? null;
+  } catch {
+    return null;
+  }
+}
+
+ // -------- core
 async function setTier(tierRaw){
   const key = normalizeTier(tierRaw);
   state.tierRaw = tierRaw || null;
@@ -337,6 +394,12 @@ async function setTier(tierRaw){
 
   if (!state.cmId) {
     setHint("Tier выбран, но CM ID не найден (проверь mapping).", "error");
+    return;
+  }
+
+  if (!state.isFree && !state.solDestination) {
+    setHint('Missing solPayment destination from Candy Guard. Re-check guard config (solPayment destination) or use base guards.', 'error');
+    emit();
     return;
   }
   await refresh();
@@ -396,6 +459,8 @@ async function refresh(){
 
     // price
     const lamports = extractSolPaymentLamports(resolved.guards);
+    const dest = extractSolPaymentDestination(resolved.guards);
+    state.solDestination = dest;
     state.isFree = (lamports == null);
     state.priceSol = state.isFree ? 0 : lamportsToSol(lamports);
 
@@ -408,9 +473,10 @@ async function refresh(){
     } else {
       state.ready = true;
       const p = state.isFree ? "price: FREE (network rent applies)" : `price: ${state.priceSol} SOL`;
+      const d = state.solDestination ? ` • dest: ${shortPk(String(state.solDestination))}` : "";
       const sup = (state.itemsRemaining == null) ? "" : ` • left: ${state.itemsRemaining}`;
       const grp = state.guardGroup ? `group: ${state.guardGroup}` : "base guards";
-      setHint(`Ready (${grp}, ${p}${sup}).`, "ok");
+      setHint(`Ready (${grp}${d}, ${p}${sup}).`, "ok");
     }
 
     emit();
@@ -457,6 +523,9 @@ async function mintNow(qty=1){
     const guards = resolved.guards;
 
     const mintArgs = {};
+    if (guards?.solPayment && state.solDestination) {
+      mintArgs.solPayment = { destination: SDK.publicKey(String(state.solDestination)) };
+    }
     if (guards?.mintLimit) mintArgs.mintLimit = { id: MINT_LIMIT_ID };
 
     function pick(obj, paths) {
@@ -476,14 +545,7 @@ async function mintNow(qty=1){
       "collectionMint.publicKey",
     ]);
 
-    const collectionUpdateAuthority = pick(cm, [
-      "collectionUpdateAuthority",
-      "collection.updateAuthority",
-      "collection.updateAuthorityAddress",
-      // IMPORTANT fallback: in many CM accounts update authority equals CM authority
-      "authority",
-      "authorityAddress",
-    ]);
+    const collectionUpdateAuthority = await resolveCollectionUpdateAuthority(cm, collectionMint);
 
     if (!collectionMint || !collectionUpdateAuthority) {
       throw new Error(
@@ -493,14 +555,17 @@ async function mintNow(qty=1){
       );
     }
 
+    const cua = (typeof collectionUpdateAuthority === 'string') ? SDK.publicKey(String(collectionUpdateAuthority)) : collectionUpdateAuthority;
+    const cMint = (typeof collectionMint === 'string') ? SDK.publicKey(String(collectionMint)) : collectionMint;
+
     for (let i=0;i<q;i++){
       const nftMint = sdk.generateSigner(umi);
       const ix = sdk.mintV2(umi, {
         candyMachine: cm.publicKey || cmPk,
         candyGuard: cm.mintAuthority,
         nftMint,
-        collectionMint,
-        collectionUpdateAuthority,
+        collectionMint: cMint,
+        collectionUpdateAuthority: cua,
         ...(cm.tokenStandard ? { tokenStandard: cm.tokenStandard } : {}),
         ...(group ? { group } : {}),
         ...(Object.keys(mintArgs).length ? { mintArgs } : {}),
