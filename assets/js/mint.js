@@ -1,558 +1,543 @@
-// assets/js/mint.js (TONFANS v6)
-// Candy Machine v2 + Candy Guard (browser, no build).
-// Emits `tonfans:state` for assets/js/ui.js.
+// assets/js/mint.js (v7)
+// TON Fans — Candy Machine (Sugar / CMv3) mint controller for your current index.html.
+// Cluster: DEVNET (forced) + RPC failover to avoid 403 "Access forbidden" from bad/private RPCs.
+//
+// Exposes: window.TONFANS.mint = { setTier, toggleConnect, refresh, mintNow, getState }
+//
+// IMPORTANT:
+// - index.html loads ui.js (defer) then mint.js (type="module").
+// - This module dispatches CustomEvent("tonfans:state", {detail: state}) so UI can render.
 
-(() => {
-  const TAG = "[TONFANS]";
-  const log = (...a) => console.log(TAG, ...a);
-  const warn = (...a) => console.warn(TAG, ...a);
-  const error = (...a) => console.error(TAG, ...a);
+const DEVNET_RPCS = [
+  "https://api.devnet.solana.com",
+  "https://rpc.ankr.com/solana_devnet",
+];
 
-  window.TONFANS = window.TONFANS || {};
-  window.TONFANS.mint = window.TONFANS.mint || {};
+const CLUSTER = "devnet";          // forced for now
+const MINT_LIMIT_ID = 1;           // must match guard config mintLimit.id
+const RECOMMENDED_MINT_LIMIT = 3;  // for UI + qty clamp
+const CU_LIMIT = 800_000;
 
-  // ---------- config
-  const QS = new URLSearchParams(location.search);
+const CM_BY_TIER = {
+  lgen: "Hr9YzscC71vdHifZR4jRvMd8JmmGxbJrS6j7QckEVqKy",
+  bgen: "Ewhn2nJV6tbvq59GMahyWmS54jQWL4n3mrsoVM8n8GHH",
+  ldia: "8L5MLvbvM9EsZ8nb1NAwqzEXuVsiq5x5fHGNKchz6UQR",
+  bdia: "EyjoAcKwkfNo8NqCZczHHnNSi3ccYpnCetkBUwbqCien",
+};
 
-  // Collection mint (sugar show)
-  const COLLECTION_MINT = "9Zz8cBzFny6ZSzETZZxUeo7Qdi4nRTedNQVVwGhQ9P5w";
-  // Collection update authority (deployer wallet)
-  const COLLECTION_UPDATE_AUTHORITY = "9mG7vEEABrX5X4mg9WCAa17XpCxR28Ute2iEaDbHTJtD";
+// Accept tier values from HTML + legacy aliases.
+const TIER_ALIASES = {
+  // html
+  littlegen: "lgen",
+  biggen: "bgen",
+  littlegen_diamond: "ldia",
+  biggen_diamond: "bdia",
+  // dash variants
+  "littlegen-diamond": "ldia",
+  "biggen-diamond": "bdia",
+  // already keys
+  lgen: "lgen",
+  bgen: "bgen",
+  ldia: "ldia",
+  bdia: "bdia",
+};
 
-  // Candy Machines by tier
-  const CM_BY_TIER = {
-    lgen: "Hr9YzscC71vdHifZR4jRvMd8JmmGxbJrS6j7QckEVqKy",
-    bgen: "Ewhn2nJV6tbvq59GMahyWmS54jQWL4n3mrsoVM8n8GHH",
-    ldia: "8L5MLvbvM9EsZ8nb1NAwqzEXuVsiq5x5fHGNKchz6UQR",
-    bdia: "EyjoAcKwkfNo8NqCZczHHnNSi3ccYpnCetkBUwbqCien",
+const TIER_LABEL = {
+  lgen: "LittlGEN",
+  bgen: "BigGEN",
+  ldia: "LittlGEN Diamond",
+  bdia: "BigGEN Diamond",
+};
+
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+function shortPk(s) { if (!s) return ""; return s.slice(0,4)+"…"+s.slice(-4); }
+
+function emit() {
+  try {
+    window.dispatchEvent(new CustomEvent("tonfans:state", { detail: structuredClone(state) }));
+  } catch {
+    window.dispatchEvent(new CustomEvent("tonfans:state", { detail: JSON.parse(JSON.stringify(state)) }));
+  }
+}
+
+function setHint(msg, kind="info") {
+  state.hint = msg || "";
+  state.hintKind = kind;
+  emit();
+}
+
+function setBusy(b, label) {
+  state.busy = !!b;
+  state.busyLabel = label || "";
+  emit();
+}
+
+function normalizeTier(t) {
+  const key = (t || "").toString().trim();
+  return TIER_ALIASES[key] || null;
+}
+
+function getProvider() {
+  return window.solana || null;
+}
+
+async function connect() {
+  const p = getProvider();
+  if (!p) throw new Error("No Solana wallet found. Install Phantom and refresh.");
+  if (!p.publicKey) await p.connect();
+  state.walletConnected = !!p.publicKey;
+  state.wallet = p.publicKey ? p.publicKey.toString() : null;
+  state.walletShort = state.wallet ? shortPk(state.wallet) : null;
+  emit();
+}
+
+async function disconnect() {
+  const p = getProvider();
+  if (p?.disconnect) {
+    try { await p.disconnect(); } catch {}
+  }
+  state.walletConnected = false;
+  state.wallet = null;
+  state.walletShort = null;
+  emit();
+}
+
+async function toggleConnect() {
+  const p = getProvider();
+  if (!p) throw new Error("No Solana wallet found.");
+  if (p.publicKey) {
+    await disconnect();
+  } else {
+    await connect();
+    await refresh(); // re-check readiness after connect
+  }
+}
+
+// -------- SDK loading (Umi + mpl-candy-machine)
+let SDK = null;
+async function loadSdk() {
+  if (SDK) return SDK;
+
+  // Use pinned versions for stability.
+  const umiBundle = await import("https://esm.sh/@metaplex-foundation/umi-bundle-defaults@1.4.1?bundle");
+  const umiCore   = await import("https://esm.sh/@metaplex-foundation/umi@1.3.0?bundle");
+  const cmSdk     = await import("https://esm.sh/@metaplex-foundation/mpl-candy-machine@6.1.0?bundle");
+  const tmSdk     = await import("https://esm.sh/@metaplex-foundation/mpl-token-metadata@3.4.0?bundle");
+  const waSdk     = await import("https://esm.sh/@metaplex-foundation/umi-signer-wallet-adapters@1.4.1?bundle");
+  const toolbox   = await import("https://esm.sh/@metaplex-foundation/mpl-toolbox@0.10.0?bundle");
+
+  SDK = {
+    createUmi: umiBundle.createUmi,
+    publicKey: umiCore.publicKey,
+    generateSigner: umiCore.generateSigner,
+    transactionBuilder: umiCore.transactionBuilder,
+    mplCandyMachine: cmSdk.mplCandyMachine,
+    fetchCandyMachine: cmSdk.fetchCandyMachine,
+    fetchCandyGuard: cmSdk.fetchCandyGuard,
+    mintV2: cmSdk.mintV2,
+    mplTokenMetadata: tmSdk.mplTokenMetadata,
+    walletAdapterIdentity: waSdk.walletAdapterIdentity,
+    setComputeUnitLimit: toolbox.setComputeUnitLimit,
   };
 
-  const TIER_ALIASES = {
-    lgen: "lgen",
-    bgen: "bgen",
-    ldia: "ldia",
-    bdia: "bdia",
-    littlegen: "lgen",
-    biggen: "bgen",
-    "littlegen-diamond": "ldia",
-    "biggen-diamond": "bdia",
-    "littlegen_diamond": "ldia",
-    "biggen_diamond": "bdia",
+  return SDK;
+}
+
+let rpcIdx = 0;
+let umi = null;
+
+function currentRpc() { return DEVNET_RPCS[rpcIdx] || DEVNET_RPCS[0]; }
+
+async function makeUmi() {
+  const sdk = await loadSdk();
+  umi = sdk.createUmi(currentRpc())
+    .use(sdk.mplCandyMachine())
+    .use(sdk.mplTokenMetadata());
+  state.rpc = currentRpc();
+  emit();
+  return umi;
+}
+
+function attachWalletIdentity() {
+  const p = getProvider();
+  if (!p?.publicKey) throw new Error("Wallet not connected.");
+
+  const sdk = SDK;
+  const walletAdapter = {
+    publicKey: p.publicKey,
+    connected: true,
+    connecting: false,
+    disconnecting: false,
+    connect: async () => { await p.connect(); },
+    disconnect: async () => { if (p.disconnect) await p.disconnect(); },
+    signTransaction: async (tx) => {
+      if (!p.signTransaction) throw new Error("Wallet does not support signTransaction");
+      return await p.signTransaction(tx);
+    },
+    signAllTransactions: async (txs) => {
+      if (p.signAllTransactions) return await p.signAllTransactions(txs);
+      const out = [];
+      for (const tx of txs) out.push(await walletAdapter.signTransaction(tx));
+      return out;
+    }
   };
 
-  const TIER_LABEL = {
-    lgen: "LittlGEN",
-    bgen: "BigGEN",
-    ldia: "LittlGEN Diamond",
-    bdia: "BigGEN Diamond",
-  };
+  umi.use(sdk.walletAdapterIdentity(walletAdapter));
+}
 
-  // Candy Guard mintLimit.id (guards.default.mintLimit.id in your config.json)
-  const MINT_LIMIT_ID = 1;
+// -------- Guard helpers
+function mergeGuards(base, override) {
+  // shallow merge is enough for guard configs (override replaces base for each guard)
+  return { ...(base || {}), ...(override || {}) };
+}
 
-  // Cluster / RPC
-  const CLUSTER = (QS.get("cluster") || "mainnet").toLowerCase();
-  const RPC =
-    QS.get("rpc") ||
-    (CLUSTER === "mainnet" || CLUSTER === "mainnet-beta"
-      ? "https://api.mainnet-beta.solana.com"
-      : "https://api.devnet.solana.com");
-
-  const CU_LIMIT = 800_000;
-
-  // ---------- DOM helpers
-  const $ = (sel) => document.querySelector(sel);
-  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-
-  function shortPk(pk) {
-    const s = String(pk || "");
-    if (!s) return "—";
-    if (s.length <= 10) return s;
-    return `${s.slice(0, 4)}…${s.slice(-4)}`;
+function resolveGuardsByLabels(cg, labels) {
+  if (!cg) return { guards: null, group: null };
+  const base = cg.guards || {};
+  const groups = cg.groups || [];
+  for (const label of labels) {
+    const g = groups.find((x) => x.label === label);
+    if (g) return { guards: mergeGuards(base, g.guards || {}), group: label };
   }
+  return { guards: base, group: null };
+}
 
-  function setStatus(msg) {
-    const el =
-      $("#mintHint") ||
-      $("#mintStatus") ||
-      $("#mintMessage") ||
-      $(".mint-hint") ||
-      $(".mint-status") ||
-      $(".mint-message") ||
-      $("#statusLine");
-    if (el) el.textContent = msg || "";
+function toLamports(v) {
+  if (v == null) return null;
+  if (typeof v === "object") {
+    const inner = v.basisPoints ?? v.lamports ?? v.amount ?? null;
+    if (inner != null) v = inner;
   }
+  try { return typeof v === "bigint" ? v : BigInt(String(v)); } catch { return null; }
+}
 
-  // ---------- state
-  const state = {
-    sdkReady: false,
-    tier: null,
-    cmId: null,
-    guardId: null,
-    walletConnected: false,
-    walletPk: null,
-    networkLabel: CLUSTER === "mainnet" || CLUSTER === "mainnet-beta" ? "Mainnet" : "Devnet",
-    ready: false,
-    busy: false,
-    priceLamports: null,
-    priceNumeric: null, // "0.10"
-    qty: 1,
-  };
+function lamportsToSol(lamports) {
+  const l = toLamports(lamports);
+  if (l == null) return null;
+  const sol = Number(l) / 1_000_000_000;
+  return Number.isFinite(sol) ? sol : null;
+}
 
-  function computeTotalLabel() {
-    if (!state.priceNumeric) return "—";
-    const p = Number(state.priceNumeric);
-    const q = Math.max(1, Number(state.qty || 1));
-    if (!Number.isFinite(p) || !Number.isFinite(q)) return "—";
-    return (p * q).toFixed(2);
-  }
+function extractSolPaymentLamports(guards) {
+  // Supports different shapes: guards.solPayment OR guards.solPayment.value
+  const sp = guards?.solPayment ?? null;
+  const v = sp?.value ?? sp;
+  const amt = v?.amount ?? v?.lamports ?? v;
+  return toLamports(amt);
+}
 
-  function tierLabel(tier) {
-    return tier ? (TIER_LABEL[tier] || tier) : null;
-  }
+function hasMintLimit(guards) {
+  return !!guards?.mintLimit;
+}
 
-  function guardLabel() {
-    return state.guardId ? shortPk(String(state.guardId)) : "—";
-  }
+// -------- RPC failover wrapper
+function isForbidden(err) {
+  const msg = (err?.message || String(err || "")).toLowerCase();
+  return msg.includes("access forbidden") || msg.includes("forbidden") || msg.includes("403");
+}
 
-  function dispatchState(extra = {}) {
-    Object.assign(state, extra);
+async function withRpcFailover(fn, label) {
+  const lastIdx = DEVNET_RPCS.length - 1;
+  let lastErr = null;
 
-    state.ready = Boolean(
-      state.sdkReady &&
-        state.walletConnected &&
-        state.tier &&
-        state.cmId &&
-        state.guardId &&
-        !state.busy
-    );
-
-    window.dispatchEvent(
-      new CustomEvent("tonfans:state", {
-        detail: {
-          tier: state.tier,
-          tierLabel: tierLabel(state.tier),
-          guardLabel: guardLabel(),
-
-          walletConnected: state.walletConnected,
-          walletPk: state.walletPk || null,
-          networkLabel: state.networkLabel,
-
-          ready: state.ready,
-          busy: state.busy,
-
-          qty: Number(state.qty || 1),
-          priceLabel: state.priceNumeric || "—",
-          totalLabel: computeTotalLabel(),
-        },
-      })
-    );
-
-    updateLegacyUI();
-  }
-
-  // ---------- legacy template support (ids already exist in your index.html)
-  function updateLegacyUI() {
-    const qtyEl = $("#qty");
-    if (qtyEl) qtyEl.textContent = String(state.qty);
-
-    const priceEl = $("#price");
-    const totalEl = $("#total");
-    if (priceEl) priceEl.textContent = state.priceNumeric || (priceEl.textContent || "—");
-    if (totalEl) totalEl.textContent = computeTotalLabel();
-
-    const mintBtn = $("#mintBtn");
-    if (mintBtn) {
-      mintBtn.textContent = state.busy ? "Minting..." : "Mint now";
-      if (state.ready) {
-        mintBtn.removeAttribute("disabled");
-        mintBtn.style.opacity = "";
-        mintBtn.style.cursor = "pointer";
-      } else {
-        mintBtn.setAttribute("disabled", "true");
-        mintBtn.style.opacity = ".55";
-        mintBtn.style.cursor = "not-allowed";
+  for (let attempt = 0; attempt < DEVNET_RPCS.length; attempt++) {
+    try {
+      if (!umi) await makeUmi();
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      // Failover on forbidden/CORS/network type issues.
+      if (isForbidden(e) || (e?.name === "TypeError" && String(e?.message||"").includes("fetch"))) {
+        if (rpcIdx < lastIdx) {
+          rpcIdx++;
+          await makeUmi();
+          setHint(`RPC switched → ${currentRpc()}`, "info");
+          await sleep(80);
+          continue;
+        }
       }
+      break;
     }
   }
+  throw lastErr;
+}
 
-  // ---------- SDK loader (esm.sh)
-  let SDK = null;
-  async function loadSdkOnce() {
-    if (SDK) return SDK;
+// -------- state
+const state = {
+  cluster: CLUSTER,
+  rpc: currentRpc(),
+  tierKey: null,          // lgen|bgen|ldia|bdia
+  tierRaw: null,          // original from UI
+  tierLabel: "—",
+  cmId: null,
 
-    const UMI_DEFAULTS = "https://esm.sh/@metaplex-foundation/umi-bundle-defaults@latest?bundle&target=es2022";
-    const UMI_CORE = "https://esm.sh/@metaplex-foundation/umi@latest?bundle&target=es2022";
-    const UMI_WALLET = "https://esm.sh/@metaplex-foundation/umi-signer-wallet-adapters@latest?bundle&target=es2022";
-    const MPL_CM = "https://esm.sh/@metaplex-foundation/mpl-candy-machine@latest?bundle&target=es2022";
-    const MPL_TOOLBOX = "https://esm.sh/@metaplex-foundation/mpl-toolbox@latest?bundle&target=es2022";
+  guardPk: null,
+  guardGroup: null,
 
-    const [{ createUmi }, umiCore, walletAdapters, mplCm, toolbox] = await Promise.all([
-      import(UMI_DEFAULTS),
-      import(UMI_CORE),
-      import(UMI_WALLET),
-      import(MPL_CM),
-      import(MPL_TOOLBOX),
-    ]);
+  walletConnected: false,
+  wallet: null,
+  walletShort: null,
 
-    SDK = {
-      createUmi,
-      publicKey: umiCore.publicKey,
-      generateSigner: umiCore.generateSigner,
-      some: umiCore.some,
-      transactionBuilder: umiCore.transactionBuilder,
-      walletAdapterIdentity: walletAdapters.walletAdapterIdentity,
-      mplCandyMachine: mplCm.mplCandyMachine,
-      fetchCandyMachine: mplCm.fetchCandyMachine,
-      safeFetchCandyGuard: mplCm.safeFetchCandyGuard,
-      mintV2: mplCm.mintV2,
-      setComputeUnitLimit: toolbox.setComputeUnitLimit,
-    };
+  ready: false,
+  priceSol: null,
+  totalSol: null,
+  mintLimit: RECOMMENDED_MINT_LIMIT,
 
-    log("SDK loaded.");
-    return SDK;
+  itemsAvailable: null,
+  itemsRedeemed: null,
+  itemsRemaining: null,
+
+  busy: false,
+  busyLabel: "",
+  hint: "Select a tier.",
+  hintKind: "info",
+};
+
+function computeTotal(qty) {
+  const q = Math.max(1, Math.min(RECOMMENDED_MINT_LIMIT, Number(qty || 1)));
+  if (state.priceSol == null) return null;
+  const t = Number(state.priceSol) * q;
+  return Number.isFinite(t) ? t : null;
+}
+
+async function setTier(tierRaw) {
+  const key = normalizeTier(tierRaw);
+  state.tierRaw = tierRaw || null;
+  state.tierKey = key;
+  state.tierLabel = key ? TIER_LABEL[key] : "—";
+  state.cmId = key ? CM_BY_TIER[key] : null;
+  state.guardPk = null;
+  state.guardGroup = null;
+  state.ready = false;
+  state.priceSol = null;
+  state.totalSol = null;
+
+  try { localStorage.setItem("tonfans:tier", tierRaw || ""); } catch {}
+  emit();
+
+  if (!key || !state.cmId) {
+    setHint("Tier выбран, но CM ID не найден (проверь mapping).", "error");
+    return;
   }
 
-  // ---------- Phantom provider + Umi instance
-  let umi = null;
+  await refresh();
+}
 
-  function getProvider() {
-    return window.solana || null;
+async function refresh() {
+  if (!state.cmId) {
+    state.ready = false;
+    state.priceSol = null;
+    setHint("Select a tier to load Candy Machine.", "info");
+    emit();
+    return;
   }
 
-  function makeAdapterFromProvider(provider) {
-    return {
-      publicKey: provider.publicKey || null,
-      connected: Boolean(provider.isConnected),
-      connect: () => provider.connect(),
-      disconnect: () => provider.disconnect(),
-      signTransaction: provider.signTransaction?.bind(provider),
-      signAllTransactions: provider.signAllTransactions?.bind(provider),
-      signMessage: provider.signMessage?.bind(provider),
-      on: provider.on?.bind(provider),
-      off: provider.off?.bind(provider),
-    };
-  }
+  setBusy(true, "Loading…");
+  setHint("Loading Candy Machine…", "info");
 
-  async function ensureUmiWithIdentity() {
-    const sdk = await loadSdkOnce();
-    if (!umi) umi = sdk.createUmi(RPC).use(sdk.mplCandyMachine());
+  try {
+    await loadSdk();
+    if (!umi) await makeUmi();
 
-    const provider = getProvider();
-    if (!provider) throw new Error("No Solana wallet found. Install Phantom.");
+    const sdk = SDK;
+    const cmPk = sdk.publicKey(state.cmId);
 
-    const adapter = makeAdapterFromProvider(provider);
-    umi.use(sdk.walletAdapterIdentity(adapter));
+    const cm = await withRpcFailover(
+      async () => await sdk.fetchCandyMachine(umi, cmPk),
+      "fetchCandyMachine"
+    );
 
-    return { sdk, umi, provider };
-  }
+    const available = Number(cm.itemsAvailable ?? 0);
+    const redeemed  = Number(cm.itemsRedeemed ?? 0);
+    const remaining = Math.max(available - redeemed, 0);
 
-  // ---------- lamports helpers
-  function lamportsFromSolAmount(solAmount) {
-    if (!solAmount) return null;
-    if (typeof solAmount === "bigint") return solAmount;
-    if (typeof solAmount === "number") return BigInt(Math.floor(solAmount));
-    if (typeof solAmount === "string" && /^\d+$/.test(solAmount)) return BigInt(solAmount);
-    if (typeof solAmount === "object") {
-      if (solAmount.basisPoints != null) return BigInt(solAmount.basisPoints);
-      if (solAmount.lamports != null) return BigInt(solAmount.lamports);
-      if (solAmount.amount != null) return lamportsFromSolAmount(solAmount.amount);
+    state.itemsAvailable = Number.isFinite(available) ? available : null;
+    state.itemsRedeemed  = Number.isFinite(redeemed) ? redeemed : null;
+    state.itemsRemaining = Number.isFinite(remaining) ? remaining : null;
+
+    // Candy Guard is CM.mintAuthority AFTER `sugar guard add`
+    state.guardPk = null;
+    state.guardGroup = null;
+    state.priceSol = null;
+
+    let cg = null;
+    try {
+      cg = await withRpcFailover(async () => await sdk.fetchCandyGuard(umi, cm.mintAuthority), "fetchCandyGuard");
+      state.guardPk = cm.mintAuthority?.toString?.() || null;
+    } catch (e) {
+      cg = null;
+      state.guardPk = null;
     }
-    return null;
-  }
 
-  function lamportsToNumeric(lamports) {
-    if (lamports == null) return null;
-    return (Number(lamports) / 1e9).toFixed(2);
-  }
-
-  // ---------- tier refresh (resolve guard + price)
-  async function refreshForTier(tierKey) {
-    const tier = TIER_ALIASES[String(tierKey || "").toLowerCase()] || null;
-    const cmId = tier ? (CM_BY_TIER[tier] || null) : null;
-
-    dispatchState({ tier, cmId, guardId: null, priceLamports: null, priceNumeric: null });
-
-    if (!cmId) {
-      setStatus("Select a tier.");
+    if (!cg) {
+      state.ready = false;
+      setHint("Candy Machine NOT wrapped by Candy Guard (run `sugar guard add` in this CM folder).", "error");
+      emit();
       return;
     }
 
-    try {
-      const { sdk, umi } = await ensureUmiWithIdentity();
+    // Candidate labels order:
+    // 1) exact HTML label (e.g. littlegen_diamond)
+    // 2) dash version
+    // 3) tierKey (ldia)
+    // 4) "default"
+    const raw = (state.tierRaw || "").toString();
+    const candidates = [
+      raw,
+      raw.replaceAll("_", "-"),
+      state.tierKey,
+      "default",
+    ].filter(Boolean);
 
-      const cmPk = sdk.publicKey(cmId);
-      const cm = await sdk.fetchCandyMachine(umi, cmPk);
+    const resolved = resolveGuardsByLabels(cg, candidates);
+    const guards = resolved.guards;
+    state.guardGroup = resolved.group;
 
-      // CandyGuard is CM.mintAuthority AFTER `sugar guard add`
-      let guardId = null;
-      let priceLamports = null;
+    // Price (solPayment)
+    const lamports = extractSolPaymentLamports(guards);
+    state.priceSol = lamportsToSol(lamports);
 
-      try {
-        const cgPk = cm.mintAuthority;
-        const cg = await sdk.safeFetchCandyGuard(umi, cgPk);
-        if (cg) {
-          guardId = cgPk;
-
-          const g =
-            (cg.guards && cg.guards.default) ||
-            (cg.groups && cg.groups.default && cg.groups.default.guards) ||
-            cg.guards ||
-            null;
-
-          const solPay = g && g.solPayment && g.solPayment.value ? g.solPayment.value : null;
-          if (solPay && solPay.amount) priceLamports = lamportsFromSolAmount(solPay.amount);
-        }
-      } catch (e) {
-        warn("CandyGuard not resolved for this CM (likely not wrapped):", e);
-      }
-
-      const priceNumeric = priceLamports != null ? lamportsToNumeric(priceLamports) : null;
-
-      dispatchState({ guardId, priceLamports, priceNumeric });
-
-      if (!guardId) {
-        setStatus("Candy Guard is NOT set for this tier. Run: cd cm-<tier> && sugar guard add");
-      } else if (!state.walletConnected) {
-        setStatus("Select tier → Connect wallet → Mint.");
-      } else {
-        setStatus("Ready. Click Mint now.");
-      }
-    } catch (e) {
-      error("refresh tier failed:", e);
-      setStatus(String(e?.message || e));
-    }
-  }
-
-  // ---------- connect / disconnect
-  async function connectWallet() {
-    const provider = getProvider();
-    if (!provider) throw new Error("No Solana wallet found. Install Phantom.");
-    await provider.connect();
-
-    const pk = provider.publicKey?.toBase58 ? provider.publicKey.toBase58() : String(provider.publicKey || "");
-    dispatchState({
-      walletConnected: true,
-      walletPk: pk,
-    });
-
-    await ensureUmiWithIdentity();
-    if (state.tier) await refreshForTier(state.tier);
-  }
-
-  async function disconnectWallet() {
-    const provider = getProvider();
-    if (provider?.disconnect) {
-      try {
-        await provider.disconnect();
-      } catch (_) {}
-    }
-    dispatchState({ walletConnected: false, walletPk: null });
-    setStatus("Disconnected.");
-  }
-
-  async function toggleConnect() {
-    try {
-      const provider = getProvider();
-      if (!provider) throw new Error("No wallet found.");
-      if (provider.isConnected) await disconnectWallet();
-      else await connectWallet();
-    } catch (e) {
-      error("toggleConnect failed:", e);
-      setStatus(String(e?.message || e));
-    }
-  }
-
-  // ---------- mint
-  async function mintOnce() {
-    const { sdk, umi } = await ensureUmiWithIdentity();
-
-    if (!state.cmId) throw new Error("Select a tier first.");
-    if (!state.guardId) throw new Error("Candy Guard missing for this tier (wrap CM).");
-    if (!state.walletConnected) throw new Error("Connect wallet first.");
-
-    const cmPk = sdk.publicKey(state.cmId);
-    const cm = await sdk.fetchCandyMachine(umi, cmPk);
-
-    const nftMint = sdk.generateSigner(umi);
-
-    const mintArgs = {
-      mintLimit: sdk.some({ id: MINT_LIMIT_ID }),
-    };
-
-    const builder = sdk
-      .transactionBuilder()
-      .add(sdk.setComputeUnitLimit(umi, { units: CU_LIMIT }))
-      .add(
-        sdk.mintV2(umi, {
-          candyMachine: cmPk,
-          nftMint,
-          collectionMint: sdk.publicKey(COLLECTION_MINT),
-          collectionUpdateAuthority: sdk.publicKey(COLLECTION_UPDATE_AUTHORITY),
-          tokenStandard: cm.tokenStandard,
-          mintArgs,
-        })
-      );
-
-    const res = await builder.sendAndConfirm(umi, { confirm: { commitment: "confirmed" } });
-    const sig = (res && (res.signature || res)) || null;
-    const sigStr = typeof sig === "string" ? sig : (sig?.toString?.() || "");
-    return { signature: sigStr, mint: nftMint.publicKey?.toString?.() || String(nftMint.publicKey) };
-  }
-
-  async function mintNow() {
-    if (state.busy) return;
-
-    try {
-      dispatchState({ busy: true });
-
-      if (!state.tier) throw new Error("Select a tier first.");
-
-      if (!state.walletConnected) {
-        setStatus("Connecting wallet...");
-        await connectWallet();
-      }
-
-      // ensure latest guard/price
-      await refreshForTier(state.tier);
-
-      if (!state.guardId) {
-        throw new Error("Candy Guard is NOT set for this tier. Run: cd cm-<tier> && sugar guard add");
-      }
-
-      if (!state.ready) throw new Error("Not ready yet.");
-
-      setStatus("Minting...");
-
-      const n = Math.max(1, Math.min(10, Number(state.qty || 1)));
-      const results = [];
-      for (let i = 0; i < n; i++) {
-        setStatus(`Minting ${i + 1}/${n}...`);
-        results.push(await mintOnce());
-      }
-
-      const last = results[results.length - 1];
-      setStatus(`Mint success (${n}). Tx: ${last.signature || "confirmed"}`);
-      log("mint success:", results);
-    } catch (e) {
-      error("mint failed:", e);
-      const msg = String(e?.message || e);
-
-      if (msg.includes("UnexpectedAccountError") || msg.includes("CandyGuard")) {
-        setStatus("Mint failed: this tier CM is not wrapped with Candy Guard. Run: cd cm-<tier> && sugar guard add");
-      } else {
-        setStatus(msg);
-      }
-    } finally {
-      dispatchState({ busy: false });
-    }
-  }
-
-  // ---------- wiring
-  function bindClicks() {
-    // Connect button (legacy)
-    const connectBtn = $("#connectBtn") || $("#walletBtn") || $("#connectWalletBtn");
-    if (connectBtn && !connectBtn.__tonfans_bound) {
-      connectBtn.__tonfans_bound = true;
-      connectBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        toggleConnect();
-      });
-    }
-
-    // Mint button (legacy)
-    const mintBtn = $("#mintBtn");
-    if (mintBtn && !mintBtn.__tonfans_bound) {
-      mintBtn.__tonfans_bound = true;
-      mintBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        mintNow();
-      });
-    }
-
-    // Qty controls
-    const minus = $("#qtyMinus");
-    const plus = $("#qtyPlus");
-
-    if (minus && !minus.__tonfans_bound) {
-      minus.__tonfans_bound = true;
-      minus.addEventListener("click", (e) => {
-        e.preventDefault();
-        state.qty = Math.max(1, Number(state.qty || 1) - 1);
-        dispatchState({ qty: state.qty });
-      });
-    }
-
-    if (plus && !plus.__tonfans_bound) {
-      plus.__tonfans_bound = true;
-      plus.addEventListener("click", (e) => {
-        e.preventDefault();
-        state.qty = Math.min(10, Number(state.qty || 1) + 1);
-        dispatchState({ qty: state.qty });
-      });
-    }
-  }
-
-  // Listen tier selection from ui.js
-  window.addEventListener("tonfans:tier", (e) => {
-    const tier = e?.detail?.tier;
-    if (tier) refreshForTier(tier);
-  });
-
-  // Expose for ui.js
-  window.TONFANS.mint.toggleConnect = toggleConnect;
-  window.TONFANS.mint.mintNow = mintNow;
-  window.TONFANS.mint.setTier = (tier) => refreshForTier(tier);
-
-  // ---------- init
-  async function init() {
-    try {
-      await loadSdkOnce();
-      dispatchState({ sdkReady: true });
-    } catch (e) {
-      dispatchState({ sdkReady: false });
-      setStatus(String(e?.message || e));
-    }
-
-    // wallet detection
-    const provider = getProvider();
-    if (provider?.isConnected && provider.publicKey) {
-      const pk = provider.publicKey.toBase58 ? provider.publicKey.toBase58() : String(provider.publicKey);
-      dispatchState({ walletConnected: true, walletPk: pk });
+    // Readiness
+    if (state.itemsRemaining === 0) {
+      state.ready = false;
+      setHint("Sold out.", "error");
     } else {
-      dispatchState({ walletConnected: false, walletPk: null });
+      state.ready = true;
+      const gLabel = state.guardGroup ? `group: ${state.guardGroup}` : "base guards";
+      const p = state.priceSol == null ? "price: —" : `price: ${state.priceSol} SOL`;
+      setHint(`Ready (${gLabel}, ${p}).`, "ok");
     }
 
-    // optional: preselect tier from URL (?tier=lgen|bgen|ldia|bdia or data-tier values)
-    const tierParam = (QS.get("tier") || "").toLowerCase();
-    const initialTier = TIER_ALIASES[tierParam] || null;
-    if (initialTier) refreshForTier(initialTier);
+    emit();
+  } catch (e) {
+    state.ready = false;
+    state.priceSol = null;
+    setHint(`failed to get info about account ${state.cmId}: ${e?.message || String(e)}`, "error");
+    emit();
+  } finally {
+    setBusy(false, "");
+  }
+}
 
-    bindClicks();
-    updateLegacyUI();
+async function mintNow(qty = 1) {
+  if (!state.cmId) throw new Error("Select a tier first.");
+  if (!state.walletConnected) throw new Error("Connect wallet first.");
+  if (!state.ready) throw new Error("Not ready (check Candy Guard / RPC).");
 
-    // phantom events
-    if (provider?.on) {
-      try {
-        provider.on("connect", () => {
-          const pk = provider.publicKey?.toBase58?.() || String(provider.publicKey || "");
-          dispatchState({ walletConnected: true, walletPk: pk });
+  setBusy(true, "Minting…");
+  setHint("Minting…", "info");
+
+  try {
+    await loadSdk();
+    if (!umi) await makeUmi();
+    attachWalletIdentity();
+
+    const sdk = SDK;
+    const cmPk = sdk.publicKey(state.cmId);
+
+    // Re-fetch CM to ensure fresh state
+    const cm = await withRpcFailover(async () => await sdk.fetchCandyMachine(umi, cmPk), "fetchCandyMachine");
+
+    // Determine group label that exists (if any)
+    let group = null;
+    try {
+      const cg = await withRpcFailover(async () => await sdk.fetchCandyGuard(umi, cm.mintAuthority), "fetchCandyGuard");
+      const raw = (state.tierRaw || "").toString();
+      const labels = [raw, raw.replaceAll("_","-"), state.tierKey, "default"].filter(Boolean);
+      const groups = cg.groups || [];
+      group = labels.find((l) => groups.some((g) => g.label === l)) || null;
+
+      // If mintLimit guard is configured, provide mintArgs
+      const resolved = resolveGuardsByLabels(cg, labels);
+      const guards = resolved.guards;
+
+      const mintArgs = {};
+      if (hasMintLimit(guards)) mintArgs.mintLimit = { id: MINT_LIMIT_ID };
+
+      // Mint quantity: do sequential mints (safe, wallet prompts per mint).
+      const q = Math.max(1, Math.min(RECOMMENDED_MINT_LIMIT, Number(qty || 1)));
+
+      const collectionMint = cm.collectionMint || cm.collection?.mint;
+      const collectionUpdateAuthority = cm.collectionUpdateAuthority || cm.collection?.updateAuthority;
+      if (!collectionMint || !collectionUpdateAuthority) {
+        throw new Error("Candy Machine missing collectionMint / collectionUpdateAuthority.");
+      }
+
+      for (let i = 0; i < q; i++) {
+        const nftMint = sdk.generateSigner(umi);
+
+        const ix = sdk.mintV2(umi, {
+          candyMachine: cm.publicKey || cm.address || cmPk,
+          nftMint,
+          collectionMint,
+          collectionUpdateAuthority,
+          ...(cm.tokenStandard ? { tokenStandard: cm.tokenStandard } : {}),
+          ...(group ? { group } : {}),
+          ...(Object.keys(mintArgs).length ? { mintArgs } : {}),
         });
-        provider.on("disconnect", () => {
-          dispatchState({ walletConnected: false, walletPk: null });
-        });
-        provider.on("accountChanged", (pubkey) => {
-          const pk = pubkey?.toBase58?.() || String(pubkey || "");
-          if (!pk) dispatchState({ walletConnected: false, walletPk: null });
-          else dispatchState({ walletConnected: true, walletPk: pk });
-          if (state.tier) refreshForTier(state.tier);
-        });
-      } catch (_) {}
+
+        const builder = sdk.transactionBuilder()
+          .add(sdk.setComputeUnitLimit(umi, { units: CU_LIMIT }))
+          .add(ix);
+
+        await builder.sendAndConfirm(umi);
+        await sleep(200);
+      }
+    } catch (inner) {
+      throw inner;
     }
 
-    log("init done", { cluster: CLUSTER, rpc: RPC });
+    setHint("Mint complete.", "ok");
+    await refresh();
+  } catch (e) {
+    setHint(e?.message || String(e), "error");
+    throw e;
+  } finally {
+    setBusy(false, "");
+  }
+}
+
+function getState() { return structuredClone(state); }
+
+// -------- init
+window.TONFANS = window.TONFANS || {};
+window.TONFANS.mint = { setTier, toggleConnect, refresh, mintNow, getState };
+
+(function init() {
+  // Wallet event listeners
+  const p = getProvider();
+  if (p?.on) {
+    try {
+      p.on("connect", () => {
+        state.walletConnected = !!p.publicKey;
+        state.wallet = p.publicKey ? p.publicKey.toString() : null;
+        state.walletShort = state.wallet ? shortPk(state.wallet) : null;
+        emit();
+        refresh().catch(() => {});
+      });
+      p.on("disconnect", () => {
+        state.walletConnected = false;
+        state.wallet = null;
+        state.walletShort = null;
+        emit();
+      });
+      p.on("accountChanged", (pk) => {
+        state.walletConnected = !!pk;
+        state.wallet = pk ? pk.toString() : null;
+        state.walletShort = state.wallet ? shortPk(state.wallet) : null;
+        emit();
+        refresh().catch(() => {});
+      });
+    } catch {}
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
-  else init();
+  // Restore tier
+  let saved = null;
+  try { saved = localStorage.getItem("tonfans:tier"); } catch {}
+  if (saved) setTier(saved).catch(() => {});
+  else emit();
+
+  // Force Devnet label always
+  state.cluster = "devnet";
+  emit();
 })();
