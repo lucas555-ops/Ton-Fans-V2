@@ -1,4 +1,4 @@
-// assets/js/mint.js (v8) — TON Fans (DEVNET)
+// assets/js/mint.js (v9) — TON Fans (DEVNET)
 // Fixes:
 // - RPC 403/CORS: hard devnet RPC list + failover
 // - More robust supply parsing (avoid false "Sold out" due to NaN/0 parsing)
@@ -419,9 +419,39 @@ async function mintNow(qty=1){
     const mintArgs = {};
     if (guards?.mintLimit) mintArgs.mintLimit = { id: MINT_LIMIT_ID };
 
-    const collectionMint = cm.collectionMint || cm.collection?.mint;
-    const collectionUpdateAuthority = cm.collectionUpdateAuthority || cm.collection?.updateAuthority;
-    if (!collectionMint || !collectionUpdateAuthority) throw new Error("CM missing collectionMint/collectionUpdateAuthority.");
+    function pick(obj, paths) {
+      for (const p of paths) {
+        let v = obj;
+        for (const part of p.split(".")) v = v?.[part];
+        if (v) return v;
+      }
+      return null;
+    }
+
+    const collectionMint = pick(cm, [
+      "collectionMint",
+      "collectionMintAddress",
+      "collection.mint",
+      "collection.mintAddress",
+      "collectionMint.publicKey",
+    ]);
+
+    const collectionUpdateAuthority = pick(cm, [
+      "collectionUpdateAuthority",
+      "collection.updateAuthority",
+      "collection.updateAuthorityAddress",
+      // IMPORTANT fallback: in many CM accounts update authority equals CM authority
+      "authority",
+      "authorityAddress",
+    ]);
+
+    if (!collectionMint || !collectionUpdateAuthority) {
+      throw new Error(
+        "CM missing collectionMint/collectionUpdateAuthority. " +
+        "This Candy Machine was deployed without a collection (or older layout). " +
+        "Fix: redeploy with a collection or set/verify collection via sugar, then retry."
+      );
+    }
 
     for (let i=0;i<q;i++){
       const nftMint = sdk.generateSigner(umi);
