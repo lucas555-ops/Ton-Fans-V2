@@ -1,4 +1,4 @@
-// assets/js/mint.js (v13) — TON Fans (DEVNET)
+// assets/js/mint.js (v15) — TON Fans (DEVNET)
 // Fixes:
 // - RPC 403/CORS: hard devnet RPC list + failover
 // - More robust supply parsing (avoid false "Sold out" due to NaN/0 parsing)
@@ -14,6 +14,8 @@ const CLUSTER = "devnet";
 const MINT_LIMIT_ID = 1;          // must match your Candy Guard mintLimit.id
 const MAX_QTY = 3;                // project rule: max 3 per wallet
 const CU_LIMIT = 800_000;
+
+console.log("[TONFANS] mint.js v15 loaded");
 
 // Devnet CM addresses (your approved list)
 const CM_BY_TIER = {
@@ -162,6 +164,16 @@ function attachWalletIdentity(){
 }
 
 // -------- value helpers
+function isBlockhashNotFound(err){
+  const m = String(err?.message || err || "").toLowerCase();
+  return m.includes("blockhash not found") || m.includes("blockhashnotfound");
+}
+
+function rotateRpc(){
+  rpcIdx = (rpcIdx + 1) % DEVNET_RPCS.length;
+  return rebuildUmi();
+}
+
 function isForbidden(err){
   const m = String(err?.message || err || "").toLowerCase();
   return m.includes("access forbidden") || m.includes("forbidden") || m.includes("403");
@@ -488,7 +500,22 @@ async function mintNow(qty=1){
         .add(sdk.setComputeUnitLimit(umi, { units: CU_LIMIT }))
         .add(ix);
 
-      await builder.sendAndConfirm(umi);
+      // send with retry if blockhash expires while user approves in wallet
+      try {
+        await builder.sendAndConfirm(umi);
+      } catch (e) {
+        if (isBlockhashNotFound(e)) {
+          setHint("Blockhash expired — retrying with fresh blockhash…", "info");
+          try { await rotateRpc(); } catch {}
+          // rebuild and try once more
+          const builder2 = sdk.transactionBuilder()
+            .add(sdk.setComputeUnitLimit(umi, { units: CU_LIMIT }))
+            .add(ix);
+          await builder2.sendAndConfirm(umi);
+        } else {
+          throw e;
+        }
+      }
       await sleep(150);
     }
 
