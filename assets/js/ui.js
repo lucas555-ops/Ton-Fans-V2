@@ -1,330 +1,331 @@
-// assets/js/ui.js (TONFANS v6)
-// UI-only layer: tier selection + sticky bar + pills.
-// Mint logic lives in assets/js/mint.js and emits `tonfans:state`.
+// assets/js/ui.js (v7)
+// TON Fans — UI controller for your current index.html.
+// - Fixes underscore tiers (littlegen_diamond / biggen_diamond)
+// - Fixes connect/disconnect visibility (Tailwind 'hidden' class)
+// - Fixes sticky bar (toggle hidden class)
+// - Renders Ready / Price / Total from tonfans:state events
+//
+// Requires: mint.js exposing window.TONFANS.mint
 
 (() => {
-  const $ = (sel) => document.querySelector(sel);
-  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+  const $ = (id) => document.getElementById(id);
 
-  // IDs that exist in your current index.html
-  const IDS = {
-    netPill: "netPill",
-    walletPill: "walletPill",
-    readyPill: "readyPill",
+  const els = {
+    netPill: $("netPill"),
+    walletPill: $("walletPill"),
+    walletAddr: $("walletAddr"),
+    walletStatus: $("walletStatus"),
+    connectBtn: $("connectBtn"),
+    disconnectBtn: $("disconnectBtn"),
 
-    selectedTierName: "selectedTierName",
-    selectedTierMeta: "selectedTierMeta", // contains "guard: —"
+    readyPill: $("readyPill"),
+    selectedTierName: $("selectedTierName"),
+    selectedTierMeta: $("selectedTierMeta"),
+    tierReady: $("tierReady"),
 
-    walletStatus: "walletStatus",
-    walletAddr: "walletAddr",
-    connectBtn: "connectBtn",
-    disconnectBtn: "disconnectBtn",
+    price: $("price"),
+    total: $("total"),
+    qty: $("qty"),
+    qtyMinus: $("qtyMinus"),
+    qtyPlus: $("qtyPlus"),
 
-    price: "price",
-    total: "total",
-    mintBtn: "mintBtn",
-    mintHint: "mintHint",
+    mintBtn: $("mintBtn"),
+    mintHint: $("mintHint"),
 
-    stickyMintBar: "stickyMintBar",
-    stickySelected: "stickySelected",
-    stickyActionBtn: "stickyActionBtn",
-    stickyChangeBtn: "stickyChangeBtn",
+    stickyMintBar: $("stickyMintBar"),
+    stickySelected: $("stickySelected"),
+    stickyActionBtn: $("stickyActionBtn"),
+    stickyChangeBtn: $("stickyChangeBtn"),
 
-    tiersSection: "tiers",
+    mintHelp: $("mintHelp"),
   };
 
-  // Normalize index.html data-tier values (supports "_" and "-")
-  const normalizeTierAttr = (raw) =>
-    String(raw || "")
-      .trim()
-      .toLowerCase()
-      .replace(/_/g, "-");
+  const tierCards = () => Array.from(document.querySelectorAll(".tier-card[data-tier]"));
 
-  // data-tier -> internal tier key
-  const TIER_MAP = {
-    "littlegen": "lgen",
-    "biggen": "bgen",
-    "littlegen-diamond": "ldia",
-    "biggen-diamond": "bdia",
+  const TIER_UI_LABEL = {
+    littlegen: "LittlGEN",
+    biggen: "BigGEN",
+    littlegen_diamond: "LittlGEN Diamond",
+    biggen_diamond: "BigGEN Diamond",
+    "littlegen-diamond": "LittlGEN Diamond",
+    "biggen-diamond": "BigGEN Diamond",
   };
 
-  const TIER_LABEL = {
-    lgen: "LittlGEN",
-    bgen: "BigGEN",
-    ldia: "LittlGEN Diamond",
-    bdia: "BigGEN Diamond",
-  };
-
-  const state = {
-    tier: null,
-    tierLabel: null,
-    guardLabel: "—",
-
-    walletConnected: false,
-    walletLabel: "Not connected",
-    networkLabel: "—",
-    ready: false,
-
-    priceLabel: null, // null -> don't overwrite DOM defaults on first render
-    totalLabel: null,
-    qty: null,
-
-    busy: false,
-  };
-
-  function shortAddr(addr) {
-    const s = String(addr || "");
-    if (!s) return "—";
-    if (s.length <= 10) return s;
-    return `${s.slice(0, 4)}…${s.slice(-4)}`;
+  function setHidden(el, hidden) {
+    if (!el) return;
+    el.classList.toggle("hidden", !!hidden);
   }
 
-  function readQtyFromDom() {
-    const q = $("#qty");
-    const n = q ? Number((q.textContent || "").trim()) : NaN;
-    return Number.isFinite(n) && n > 0 ? n : 1;
+  function setText(el, v) {
+    if (!el) return;
+    el.textContent = v == null ? "" : String(v);
   }
 
-  function computeTotal(priceLabel, qty) {
-    const p = Number(priceLabel);
-    if (!Number.isFinite(p)) return null;
-    const q = Number(qty);
-    const qq = Number.isFinite(q) && q > 0 ? q : 1;
-    return (p * qq).toFixed(2);
+  function fmt(n) {
+    if (n == null || !Number.isFinite(Number(n))) return "—";
+    const x = Number(n);
+    if (x === 0) return "0";
+    if (x < 1) return x.toFixed(2);
+    return x.toFixed(2);
   }
 
-  function scrollToTiers() {
-    const sec = $("#" + IDS.tiersSection);
-    if (!sec) return;
-    sec.scrollIntoView({ behavior: "smooth", block: "start" });
-    setTimeout(() => {
-      sec.classList.add("tier-pulse");
-      setTimeout(() => sec.classList.remove("tier-pulse"), 900);
-    }, 250);
+  function getQty() {
+    const v = Number(els.qty?.value || 1);
+    if (!Number.isFinite(v) || v <= 0) return 1;
+    return Math.floor(v);
   }
 
-  function highlightTierCards(tierKey) {
-    $$(".tier-card[data-tier]").forEach((card) => {
-      const raw = normalizeTierAttr(card.getAttribute("data-tier"));
-      const k = TIER_MAP[raw] || null;
-      card.classList.toggle("tier-selected", Boolean(tierKey && k === tierKey));
-    });
+  function clampQty(max) {
+    if (!els.qty) return;
+    let q = getQty();
+    if (max && q > max) q = max;
+    if (q < 1) q = 1;
+    els.qty.value = String(q);
   }
 
-  function setTier(tierKey, { emit = true } = {}) {
-    state.tier = tierKey || null;
-    state.tierLabel = state.tier ? (TIER_LABEL[state.tier] || state.tier) : null;
-
-    highlightTierCards(state.tier);
-
-    if (emit) {
-      window.dispatchEvent(
-        new CustomEvent("tonfans:tier", { detail: { tier: state.tier } })
-      );
+  function highlightTier(tierRaw) {
+    for (const c of tierCards()) {
+      const t = c.getAttribute("data-tier");
+      const on = t === tierRaw;
+      c.classList.toggle("tier-selected", on);
+      c.setAttribute("aria-selected", on ? "true" : "false");
     }
   }
 
-  function wireTierCards() {
-    $$(".tier-card[data-tier]").forEach((card) => {
-      card.style.cursor = "pointer";
-      card.addEventListener("click", () => {
-        const raw = normalizeTierAttr(card.getAttribute("data-tier"));
-        const key = TIER_MAP[raw] || null;
-        if (key) setTier(key, { emit: true });
-      });
-    });
-
-    // Any "change tier" elements scroll to tiers
-    $$(".change-tier-btn, a[href='#tiers']").forEach((el) => {
-      el.addEventListener("click", (e) => {
-        e.preventDefault();
-        scrollToTiers();
-      });
-    });
+  function showSticky(show) {
+    if (!els.stickyMintBar) return;
+    setHidden(els.stickyMintBar, !show);
   }
 
-  function wireButtons() {
-    const connectBtn = $("#" + IDS.connectBtn);
-    const disconnectBtn = $("#" + IDS.disconnectBtn);
-    const mintBtn = $("#" + IDS.mintBtn);
-
-    if (connectBtn) {
-      connectBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        window.TONFANS?.mint?.toggleConnect?.();
-      });
-    }
-    if (disconnectBtn) {
-      disconnectBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        window.TONFANS?.mint?.toggleConnect?.();
-      });
-    }
-    if (mintBtn) {
-      mintBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        window.TONFANS?.mint?.mintNow?.();
-      });
+  function updateActionButtons(s) {
+    // main connect/disconnect buttons
+    if (s.walletConnected) {
+      setHidden(els.connectBtn, true);
+      setHidden(els.disconnectBtn, false);
+    } else {
+      setHidden(els.connectBtn, false);
+      setHidden(els.disconnectBtn, true);
     }
 
-    // Sticky bar buttons
-    const stickyAction = $("#" + IDS.stickyActionBtn);
-    const stickyChange = $("#" + IDS.stickyChangeBtn);
+    // sticky action
+    if (!els.stickyActionBtn) return;
 
-    if (stickyChange) {
-      stickyChange.addEventListener("click", (e) => {
-        e.preventDefault();
-        scrollToTiers();
-      });
-    }
-
-    if (stickyAction) {
-      stickyAction.addEventListener("click", (e) => {
-        e.preventDefault();
-        if (!state.walletConnected) return window.TONFANS?.mint?.toggleConnect?.();
-        if (!state.tier) return scrollToTiers();
-        if (!state.ready) return window.TONFANS?.mint?.setTier?.(state.tier);
-        return window.TONFANS?.mint?.mintNow?.();
-      });
+    if (!s.walletConnected) {
+      els.stickyActionBtn.textContent = "Connect";
+    } else if (s.ready) {
+      els.stickyActionBtn.textContent = "Mint";
+    } else {
+      els.stickyActionBtn.textContent = "Prepare";
     }
   }
 
-  function render() {
-    // top pills
-    const netPill = $("#" + IDS.netPill);
-    const walletPill = $("#" + IDS.walletPill);
-    const readyPill = $("#" + IDS.readyPill);
+  function renderState(s) {
+    // Network pill
+    setText(els.netPill, `Network ${s.cluster === "devnet" ? "Devnet" : s.cluster}`);
 
-    if (netPill) netPill.textContent = state.networkLabel || "—";
-    if (walletPill) walletPill.textContent = state.walletConnected ? `Wallet: ${shortAddr(state.walletLabel)}` : "Wallet";
-    if (readyPill) readyPill.textContent = `Ready: ${state.ready ? "Yes" : "No"}`;
-
-    // selected tier box
-    const nameEl = $("#" + IDS.selectedTierName);
-    const metaEl = $("#" + IDS.selectedTierMeta);
-    if (nameEl) nameEl.textContent = state.tierLabel || "—";
-    if (metaEl) metaEl.textContent = `guard: ${state.guardLabel || "—"}`;
-
-    // wallet card
-    const walletStatus = $("#" + IDS.walletStatus);
-    const walletAddr = $("#" + IDS.walletAddr);
-    if (walletStatus) walletStatus.textContent = state.walletConnected ? "Connected" : "Not connected";
-    if (walletAddr) {
-      walletAddr.textContent = state.walletConnected ? `Wallet: ${shortAddr(state.walletLabel)}` : "Connect wallet";
-      walletAddr.classList.toggle("hidden", !state.walletConnected);
+    // Wallet pill + wallet card
+    if (s.walletConnected) {
+      setText(els.walletPill, `Wallet: ${s.walletShort || "Connected"}`);
+      setText(els.walletAddr, s.walletShort || "");
+      setText(els.walletStatus, "Connected");
+    } else {
+      setText(els.walletPill, "Wallet");
+      setText(els.walletAddr, "—");
+      setText(els.walletStatus, "Not connected");
     }
 
-    // connect/disconnect visibility (IMPORTANT: toggle Tailwind 'hidden' class)
-    const connectBtn = $("#" + IDS.connectBtn);
-    const disconnectBtn = $("#" + IDS.disconnectBtn);
-    if (connectBtn) connectBtn.classList.toggle("hidden", state.walletConnected);
-    if (disconnectBtn) disconnectBtn.classList.toggle("hidden", !state.walletConnected);
+    // Selected tier
+    setText(els.selectedTierName, s.tierLabel || "—");
 
-    // price + total (avoid nuking initial DOM defaults until we receive values)
-    const priceEl = $("#" + IDS.price);
-    const totalEl = $("#" + IDS.total);
+    const guardLine = s.guardPk ? `guard: ${String(s.guardPk).slice(0, 4)}…${String(s.guardPk).slice(-4)}${s.guardGroup ? ` (${s.guardGroup})` : ""}` : "guard: —";
+    setText(els.selectedTierMeta, guardLine);
+    setHidden(els.tierReady, !s.ready);
+    highlightTier(s.tierRaw);
 
-    const qty = state.qty ?? readQtyFromDom();
-    const priceLabel =
-      state.priceLabel != null ? state.priceLabel : (priceEl ? (priceEl.textContent || "").trim() : "—");
+    // sticky
+    if (s.tierRaw) {
+      showSticky(true);
+      setText(els.stickySelected, s.tierLabel || TIER_UI_LABEL[s.tierRaw] || "—");
+    } else {
+      showSticky(false);
+    }
 
-    // If mint.js didn't send total, compute it
-    const totalLabel =
-      state.totalLabel != null
-        ? state.totalLabel
-        : computeTotal(priceLabel, qty) || (totalEl ? (totalEl.textContent || "").trim() : "—");
+    // qty limits
+    clampQty(s.mintLimit || 3);
 
-    if (priceEl && state.priceLabel != null) priceEl.textContent = state.priceLabel || "—";
-    if (totalEl && (state.totalLabel != null || state.priceLabel != null)) totalEl.textContent = totalLabel || "—";
+    // price / total
+    const q = getQty();
+    setText(els.price, fmt(s.priceSol));
+    const total = (s.priceSol == null) ? null : (Number(s.priceSol) * q);
+    setText(els.total, fmt(total));
 
-    // mint button: remove inline "disabled look" when ready
-    const mintBtn = $("#" + IDS.mintBtn);
-    if (mintBtn) {
-      const disabled = !state.ready || state.busy;
-      mintBtn.disabled = disabled;
+    // ready pill + mint button
+    setText(els.readyPill, `Ready: ${s.ready ? "Yes" : "No"}`);
 
-      if (disabled) {
-        mintBtn.style.opacity = ".55";
-        mintBtn.style.cursor = "not-allowed";
-      } else {
-        mintBtn.style.opacity = "";
-        mintBtn.style.cursor = "pointer";
-      }
+    const canMint = !!s.walletConnected && !!s.ready && !s.busy;
+    if (els.mintBtn) {
+      els.mintBtn.disabled = !canMint;
+      els.mintBtn.style.opacity = canMint ? "1" : ".55";
+      els.mintBtn.style.cursor = canMint ? "pointer" : "not-allowed";
+      els.mintBtn.textContent = s.busy ? (s.busyLabel || "Working…") : "Mint now";
     }
 
     // hint
-    const hint = $("#" + IDS.mintHint);
-    if (hint) {
-      if (state.busy) hint.textContent = "Working…";
-      else if (!state.tier) hint.textContent = "Select a tier.";
-      else if (!state.walletConnected) hint.textContent = "Select tier → Connect wallet → Mint.";
-      else if (!state.ready) hint.textContent = "Preparing Candy Guard…";
-      else hint.textContent = "Ready. Click Mint now.";
+    if (els.mintHint) {
+      const prefix = s.hintKind === "error" ? "Error: " : (s.hintKind === "ok" ? "" : "Status: ");
+      setText(els.mintHint, `${prefix}${s.hint || ""}`.trim());
     }
 
-    // sticky bar: show as soon as tier is selected (as your index.html comment says)
-    const sticky = $("#" + IDS.stickyMintBar);
-    if (sticky) sticky.classList.toggle("hidden", !state.tier);
+    updateActionButtons(s);
 
-    const stickySelected = $("#" + IDS.stickySelected);
-    if (stickySelected) stickySelected.textContent = state.tierLabel || "—";
-
-    const stickyAction = $("#" + IDS.stickyActionBtn);
-    if (stickyAction) {
-      if (!state.walletConnected) stickyAction.textContent = "Connect";
-      else if (!state.tier) stickyAction.textContent = "Select tier";
-      else if (!state.ready) stickyAction.textContent = "Prepare";
-      else stickyAction.textContent = "Mint now";
+    // If CM isn't set yet, keep "Set CM address" link as a guide
+    if (els.mintHelp) {
+      els.mintHelp.textContent = s.tierRaw ? "Change tier →" : "Set CM address →";
+      els.mintHelp.href = s.tierRaw ? "#tiers" : "#transparency";
     }
   }
 
-  // receive state from mint.js
-  window.addEventListener("tonfans:state", (e) => {
-    const d = e.detail || {};
+  function getMint() {
+    return window.TONFANS?.mint || null;
+  }
 
-    if (typeof d.walletConnected === "boolean") state.walletConnected = d.walletConnected;
+  async function onTierClick(card) {
+    const tierRaw = card.getAttribute("data-tier");
+    if (!tierRaw) return;
 
-    // prefer full wallet address if provided
-    if (typeof d.walletPk === "string") state.walletLabel = d.walletPk;
-    else if (typeof d.walletLabel === "string") state.walletLabel = d.walletLabel;
+    highlightTier(tierRaw);
+    setText(els.selectedTierName, TIER_UI_LABEL[tierRaw] || tierRaw);
+    setText(els.selectedTierMeta, "guard: —");
+    showSticky(true);
+    setText(els.stickySelected, TIER_UI_LABEL[tierRaw] || tierRaw);
 
-    if (typeof d.networkLabel === "string") state.networkLabel = d.networkLabel;
+    const mint = getMint();
+    if (mint?.setTier) await mint.setTier(tierRaw);
+  }
 
-    if (typeof d.tier === "string" || d.tier === null) {
-      // if mint.js sets tier (via ?tier=...), sync highlight without re-emitting
-      if (d.tier !== state.tier) setTier(d.tier, { emit: false });
-      else state.tier = d.tier;
+  function bindTierCards() {
+    for (const c of tierCards()) {
+      c.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onTierClick(c).catch(() => {});
+      }, { capture: true });
     }
-    if (typeof d.tierLabel === "string" || d.tierLabel === null) state.tierLabel = d.tierLabel;
-
-    if (typeof d.guardLabel === "string") state.guardLabel = d.guardLabel;
-
-    if (typeof d.ready === "boolean") state.ready = d.ready;
-    if (typeof d.busy === "boolean") state.busy = d.busy;
-
-    if (typeof d.priceLabel === "string") state.priceLabel = d.priceLabel;
-    if (typeof d.totalLabel === "string") state.totalLabel = d.totalLabel;
-    if (typeof d.qty === "number") state.qty = d.qty;
-
-    render();
-  });
-
-  function bootstrapFromDom() {
-    // keep initial values from HTML (so we don't turn 0.10 into — on first paint)
-    const priceEl = $("#" + IDS.price);
-    const totalEl = $("#" + IDS.total);
-    if (priceEl) state.priceLabel = (priceEl.textContent || "").trim();
-    if (totalEl) state.totalLabel = (totalEl.textContent || "").trim();
-    state.qty = readQtyFromDom();
   }
 
-  function init() {
-    bootstrapFromDom();
-    wireTierCards();
-    wireButtons();
-    render();
+  function bindQty() {
+    if (els.qtyMinus) els.qtyMinus.addEventListener("click", (e) => {
+      e.preventDefault();
+      const max = window.__TONFANS_STATE__?.mintLimit || 3;
+      let q = getQty();
+      q = Math.max(1, q - 1);
+      els.qty.value = String(q);
+      renderState(window.__TONFANS_STATE__ || {});
+    });
+
+    if (els.qtyPlus) els.qtyPlus.addEventListener("click", (e) => {
+      e.preventDefault();
+      const max = window.__TONFANS_STATE__?.mintLimit || 3;
+      let q = getQty();
+      q = Math.min(max, q + 1);
+      els.qty.value = String(q);
+      renderState(window.__TONFANS_STATE__ || {});
+    });
+
+    if (els.qty) els.qty.addEventListener("input", () => {
+      renderState(window.__TONFANS_STATE__ || {});
+    });
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
-  else init();
+  function bindConnect() {
+    if (els.connectBtn) els.connectBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try {
+        await getMint()?.toggleConnect?.();
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    if (els.disconnectBtn) els.disconnectBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try {
+        await getMint()?.toggleConnect?.();
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    if (els.stickyActionBtn) els.stickyActionBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const s = window.__TONFANS_STATE__ || {};
+      const mint = getMint();
+      if (!mint) return;
+
+      try {
+        if (!s.walletConnected) {
+          await mint.toggleConnect();
+        } else if (s.ready) {
+          await mint.mintNow(getQty());
+        } else {
+          await mint.refresh();
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    if (els.stickyChangeBtn) els.stickyChangeBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      location.hash = "#tiers";
+      try { document.getElementById("tiers")?.scrollIntoView({ behavior: "smooth" }); } catch {}
+    });
+  }
+
+  function bindMint() {
+    if (!els.mintBtn) return;
+    els.mintBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try {
+        await getMint()?.mintNow?.(getQty());
+      } catch (err) {
+        console.error(err);
+      }
+    });
+  }
+
+  function boot() {
+    bindTierCards();
+    bindQty();
+    bindConnect();
+    bindMint();
+
+    // default UI state
+    const initState = {
+      cluster: "devnet",
+      walletConnected: false,
+      tierRaw: null,
+      tierLabel: "—",
+      ready: false,
+      priceSol: null,
+      mintLimit: 3,
+      hint: "Select a tier.",
+      hintKind: "info",
+      busy: false,
+      busyLabel: "",
+    };
+    window.__TONFANS_STATE__ = initState;
+    renderState(initState);
+
+    window.addEventListener("tonfans:state", (e) => {
+      window.__TONFANS_STATE__ = e.detail;
+      renderState(e.detail);
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
 })();
