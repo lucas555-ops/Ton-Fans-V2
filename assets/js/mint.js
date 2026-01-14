@@ -1,4 +1,4 @@
-// assets/js/mint.js (v12) — TON Fans (DEVNET)
+// assets/js/mint.js (v13) — TON Fans (DEVNET)
 // Fixes:
 // - RPC 403/CORS: hard devnet RPC list + failover
 // - More robust supply parsing (avoid false "Sold out" due to NaN/0 parsing)
@@ -233,10 +233,26 @@ function resolveGuardsByLabels(cg, labels){
 }
 
 function extractSolPaymentLamports(guards){
-  const sp = guards?.solPayment ?? null;
-  const v = sp?.value ?? sp;
-  const amt = v?.amount ?? v?.lamports ?? v;
-  return toBigIntMaybe(amt);
+  const sp = guards?.solPayment;
+  if (!sp) return null;
+
+  // Handle Option-like wrappers used by some Umi builds
+  const kind = sp.__kind ?? sp.__option ?? null;
+  if (kind && String(kind).toLowerCase().includes("none")) return null;
+
+  const inner = sp.value ?? (Array.isArray(sp.fields) ? sp.fields[0] : null) ?? sp;
+
+  // Common shapes:
+  // - { amount: SolAmount } where SolAmount has basisPoints (lamports)
+  // - { lamports: bigint }
+  // - SolAmount itself
+  const candidate = inner?.amount ?? inner?.lamports ?? inner?.basisPoints ?? inner;
+  const bi = toBigIntMaybe(candidate);
+
+  // If we couldn't parse a number, treat as missing guard
+  if (bi == null) return null;
+
+  return bi;
 }
 
 // -------- state
@@ -262,6 +278,7 @@ const state = {
 
   // pricing
   priceSol: null,
+  isFree: false,
 
   // flags
   ready: false,
@@ -357,7 +374,8 @@ async function refresh(){
 
     // price
     const lamports = extractSolPaymentLamports(resolved.guards);
-    state.priceSol = lamportsToSol(lamports);
+    state.isFree = (lamports == null);
+    state.priceSol = state.isFree ? 0 : lamportsToSol(lamports);
 
     // readiness:
     // - If remaining is known and ==0 => sold out.
@@ -367,7 +385,7 @@ async function refresh(){
       setHint(`Sold out (${state.itemsRedeemed ?? "?"}/${state.itemsAvailable ?? "?"}).`, "error");
     } else {
       state.ready = true;
-      const p = state.priceSol == null ? "price: —" : `price: ${state.priceSol} SOL`;
+      const p = state.isFree ? "price: FREE (network rent applies)" : `price: ${state.priceSol} SOL`;
       const sup = (state.itemsRemaining == null) ? "" : ` • left: ${state.itemsRemaining}`;
       const grp = state.guardGroup ? `group: ${state.guardGroup}` : "base guards";
       setHint(`Ready (${grp}, ${p}${sup}).`, "ok");
