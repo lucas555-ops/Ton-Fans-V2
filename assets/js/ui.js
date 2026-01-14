@@ -1,11 +1,12 @@
-// assets/js/ui.js (v14) — TON Fans UI for your index.html
+// assets/js/ui.js (v15) — TON Fans UI for your index.html
 // Fixes:
-// - Top pills: do NOT duplicate labels (Network/Wallet/Ready already present in HTML)
-// - Quantity max 3 enforced (plus/minus + input)
-// - Sticky bar action always says "Mint" (disabled when not ready)
-// - Mint button enable/disable consistent with state.ready + sold out hints
-
+// - Quantity works with <div id="qty"> (not input) and clamps 1..3
+// - Price/Total show 3 decimals when needed (e.g. 0.125 / 0.375), otherwise 2 decimals
+// - Prevents duplicated pill labels
+// - Sticky bar stays in sync + mint triggers correctly
 (() => {
+  console.log("[TONFANS] ui.js v15 loaded");
+
   const $ = (id) => document.getElementById(id);
 
   const els = {
@@ -38,30 +39,51 @@
     stickyChangeBtn: $("stickyChangeBtn"),
   };
 
-  const tierCards = () => Array.from(document.querySelectorAll(".tier-card[data-tier]"));
-
   const MAX_QTY = 3;
+
+  const tierCards = () => Array.from(document.querySelectorAll(".tier-card[data-tier]"));
 
   function setHidden(el, hidden){ if (el) el.classList.toggle("hidden", !!hidden); }
   function setText(el, v){ if (el) el.textContent = v == null ? "" : String(v); }
-  function fmt(n){
+
+  function fmtSol(n){
     if (n == null || !Number.isFinite(Number(n))) return "—";
-    return Number(n).toFixed(2);
+    const x = Number(n);
+
+    // robust: decide 2 vs 3 decimals based on thousandths
+    const milli = Math.round(x * 1000);
+    const rounded3 = milli / 1000;
+
+    // if last digit is 0 -> show 2 decimals (0.10, 0.20, 0.13, etc.)
+    if (milli % 10 === 0) return rounded3.toFixed(2);
+    return rounded3.toFixed(3);
   }
+
+  function readQtyRaw(){
+    if (!els.qty) return "1";
+    if ("value" in els.qty) return String(els.qty.value || "1");
+    return String(els.qty.textContent || "1").trim();
+  }
+
   function getQty(){
-    const v = Number(els.qty?.value || 1);
+    const v = Number(readQtyRaw() || 1);
     if (!Number.isFinite(v) || v <= 0) return 1;
     return Math.floor(v);
   }
+
   function setQty(v){
     if (!els.qty) return;
-    let q = Math.floor(Number(v||1));
+    let q = Math.floor(Number(v || 1));
     if (!Number.isFinite(q) || q < 1) q = 1;
     if (q > MAX_QTY) q = MAX_QTY;
-    els.qty.value = String(q);
-    // also enforce attributes
-    els.qty.setAttribute("min","1");
-    els.qty.setAttribute("max", String(MAX_QTY));
+
+    if ("value" in els.qty) {
+      els.qty.value = String(q);
+      els.qty.setAttribute("min","1");
+      els.qty.setAttribute("max", String(MAX_QTY));
+    } else {
+      els.qty.textContent = String(q);
+    }
   }
 
   function highlightTier(tierRaw){
@@ -78,7 +100,6 @@
   }
 
   function render(s){
-    // store state
     window.__TONFANS_STATE__ = s;
 
     // Top pills (labels are in HTML already)
@@ -92,9 +113,14 @@
     setHidden(els.connectBtn, !!s.walletConnected);
     setHidden(els.disconnectBtn, !s.walletConnected);
 
-    // Selected tier card
+    // Selected tier
     setText(els.selectedTierName, s.tierLabel || "—");
-    setText(els.selectedTierMeta, s.guardPk ? `guard: ${String(s.guardPk).slice(0,4)}…${String(s.guardPk).slice(-4)}${s.guardGroup ? ` (${s.guardGroup})` : ""}` : "guard: —");
+    setText(
+      els.selectedTierMeta,
+      s.guardPk
+        ? `guard: ${String(s.guardPk).slice(0,4)}…${String(s.guardPk).slice(-4)}${s.guardGroup ? ` (${s.guardGroup})` : ""}`
+        : "guard: —"
+    );
     setHidden(els.tierReady, !s.ready);
     highlightTier(s.tierRaw);
 
@@ -105,24 +131,25 @@
       if (show) setText(els.stickySelected, s.tierLabel || "—");
     }
 
-    // Quantity
+    // Quantity clamp + disable buttons
     setQty(getQty());
-    // Disable +/- at bounds
     if (els.qtyMinus) {
-      els.qtyMinus.disabled = getQty() <= 1;
-      els.qtyMinus.style.opacity = els.qtyMinus.disabled ? ".55" : "1";
-      els.qtyMinus.style.cursor = els.qtyMinus.disabled ? "not-allowed" : "pointer";
+      const dis = getQty() <= 1;
+      els.qtyMinus.disabled = dis;
+      els.qtyMinus.style.opacity = dis ? ".55" : "1";
+      els.qtyMinus.style.cursor = dis ? "not-allowed" : "pointer";
     }
     if (els.qtyPlus) {
-      els.qtyPlus.disabled = getQty() >= MAX_QTY;
-      els.qtyPlus.style.opacity = els.qtyPlus.disabled ? ".55" : "1";
-      els.qtyPlus.style.cursor = els.qtyPlus.disabled ? "not-allowed" : "pointer";
+      const dis = getQty() >= MAX_QTY;
+      els.qtyPlus.disabled = dis;
+      els.qtyPlus.style.opacity = dis ? ".55" : "1";
+      els.qtyPlus.style.cursor = dis ? "not-allowed" : "pointer";
     }
 
     // Price + total
-    setText(els.price, fmt(s.priceSol));
+    setText(els.price, fmtSol(s.priceSol));
     const total = (s.priceSol == null) ? null : (Number(s.priceSol) * getQty());
-    setText(els.total, fmt(total));
+    setText(els.total, fmtSol(total));
 
     // Mint button
     if (els.mintBtn){
@@ -133,7 +160,7 @@
       els.mintBtn.style.cursor = ok ? "pointer" : "not-allowed";
     }
 
-    // Sticky action — ALWAYS show "Mint" when wallet connected
+    // Sticky action
     if (els.stickyActionBtn){
       if (!s.walletConnected) {
         els.stickyActionBtn.textContent = "Connect";
@@ -149,7 +176,7 @@
 
     // Hint
     if (els.mintHint){
-      const prefix = s.hintKind === "error" ? "Error: " : (s.hintKind === "ok" ? "" : "");
+      const prefix = s.hintKind === "error" ? "Error: " : "";
       setText(els.mintHint, `${prefix}${s.hint || ""}`.trim());
     }
 
@@ -176,11 +203,12 @@
       c.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
         onTier(c).catch(()=>{});
       }, { capture: true });
     }
 
-    // qty
+    // qty buttons
     if (els.qtyMinus) els.qtyMinus.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -189,6 +217,7 @@
       setQty(getQty() - 1);
       render(window.__TONFANS_STATE__ || {});
     }, { capture: true });
+
     if (els.qtyPlus) els.qtyPlus.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -197,12 +226,9 @@
       setQty(getQty() + 1);
       render(window.__TONFANS_STATE__ || {});
     }, { capture: true });
-    if (els.qty) els.qty.addEventListener("click", (e) => {
-      // no-op for div qty; kept for compatibility
-      e.stopPropagation();
-    }, { capture: true });
 
-    if (els.qty && "addEventListener" in els.qty && "value" in els.qty) els.qty.addEventListener("input", (e) => {
+    // input support (if later you switch qty element to input)
+    if (els.qty && ("value" in els.qty)) els.qty.addEventListener("input", (e) => {
       e.stopPropagation();
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
       setQty(getQty());
@@ -245,6 +271,8 @@
       location.hash = "#tiers";
       try { document.getElementById("tiers")?.scrollIntoView({ behavior: "smooth" }); } catch {}
     });
+
+    window.addEventListener("tonfans:state", (e) => render(e.detail));
   }
 
   function boot(){
@@ -257,16 +285,12 @@
       tierLabel: "—",
       ready: false,
       priceSol: null,
-      mintLimit: MAX_QTY,
       busy: false,
-      busyLabel: "",
-      hint: "Select a tier.",
+      hint: "",
       hintKind: "info",
     };
     window.__TONFANS_STATE__ = init;
     render(init);
-
-    window.addEventListener("tonfans:state", (e) => render(e.detail));
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
