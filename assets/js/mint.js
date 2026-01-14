@@ -47,6 +47,26 @@
     bdia: "EyjoAcKwkfNo8NqCZczHHnNSi3ccYpnCetkBUwbqCien",
   };
 
+// Accept both internal tier keys and data-tier values from index.html
+const TIER_ALIASES = {
+  lgen: "lgen",
+  bgen: "bgen",
+  ldia: "ldia",
+  bdia: "bdia",
+  "littlegen": "lgen",
+  "biggen": "bgen",
+  "littlegen-diamond": "ldia",
+  "biggen-diamond": "bdia",
+};
+
+const TIER_LABEL = {
+  lgen: "LittlGEN",
+  bgen: "BigGEN",
+  ldia: "LittlGEN Diamond",
+  bdia: "BigGEN Diamond",
+};
+
+
   // Candy Guard mintLimit.id (from guards.default.mintLimit.id in your config.json)
   const MINT_LIMIT_ID = 1;
 
