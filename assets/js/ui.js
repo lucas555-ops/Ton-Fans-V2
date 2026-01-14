@@ -1,4 +1,4 @@
-// assets/js/ui.js (v8) — TON Fans UI for your index.html
+// assets/js/ui.js (v9) — TON Fans UI for your index.html
 // Fixes:
 // - Top pills: do NOT duplicate labels (Network/Wallet/Ready already present in HTML)
 // - Quantity max 3 enforced (plus/minus + input)
@@ -119,6 +119,7 @@
       els.mintBtn.disabled = !ok;
       els.mintBtn.style.opacity = ok ? "1" : ".55";
       els.mintBtn.textContent = s.busy ? (s.busyLabel || "Working…") : "Mint now";
+      els.mintBtn.style.cursor = ok ? "pointer" : "not-allowed";
     }
 
     // Sticky action — ALWAYS show "Mint" when wallet connected
@@ -126,9 +127,12 @@
       if (!s.walletConnected) {
         els.stickyActionBtn.textContent = "Connect";
         els.stickyActionBtn.disabled = false;
+        els.stickyActionBtn.style.cursor = "pointer";
       } else {
         els.stickyActionBtn.textContent = "Mint";
-        els.stickyActionBtn.disabled = !canMint(s);
+        const okSticky = canMint(s);
+        els.stickyActionBtn.disabled = !okSticky;
+        els.stickyActionBtn.style.cursor = okSticky ? "pointer" : "not-allowed";
       }
     }
 
