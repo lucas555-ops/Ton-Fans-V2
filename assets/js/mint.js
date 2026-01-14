@@ -1,4 +1,4 @@
-// assets/js/mint.js (v9) — TON Fans (DEVNET)
+// assets/js/mint.js (v12) — TON Fans (DEVNET)
 // Fixes:
 // - RPC 403/CORS: hard devnet RPC list + failover
 // - More robust supply parsing (avoid false "Sold out" due to NaN/0 parsing)
@@ -457,6 +457,7 @@ async function mintNow(qty=1){
       const nftMint = sdk.generateSigner(umi);
       const ix = sdk.mintV2(umi, {
         candyMachine: cm.publicKey || cmPk,
+        candyGuard: cm.mintAuthority,
         nftMint,
         collectionMint,
         collectionUpdateAuthority,
