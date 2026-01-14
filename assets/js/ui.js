@@ -1,4 +1,4 @@
-// assets/js/ui.js (v10) — TON Fans UI for your index.html
+// assets/js/ui.js (v11) — TON Fans UI for your index.html
 // Fixes:
 // - Top pills: do NOT duplicate labels (Network/Wallet/Ready already present in HTML)
 // - Quantity max 3 enforced (plus/minus + input)
@@ -197,7 +197,12 @@
       setQty(getQty() + 1);
       render(window.__TONFANS_STATE__ || {});
     }, { capture: true });
-    if (els.qty) els.qty.addEventListener("input", (e) => {
+    if (els.qty) els.qty.addEventListener("click", (e) => {
+      // no-op for div qty; kept for compatibility
+      e.stopPropagation();
+    }, { capture: true });
+
+    if (els.qty && "addEventListener" in els.qty && "value" in els.qty) els.qty.addEventListener("input", (e) => {
       e.stopPropagation();
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
       setQty(getQty());
