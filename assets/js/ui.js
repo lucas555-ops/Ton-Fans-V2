@@ -1,304 +1,246 @@
 // assets/js/ui.js
 (() => {
-  const STATE = {
-    tier: null,            // 'lgen' | 'bgen' | 'ldia' | 'bdia'
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+  const IDS = {
+    netPill: "netPill",
+    walletPill: "walletPill",
+    readyPill: "readyPill",
+
+    selectedTierName: "selectedTierName",
+    selectedTierGuard: "selectedTierGuard",
+
+    walletStatus: "walletStatus",
+    walletAddr: "walletAddr",
+    connectBtn: "connectBtn",
+    disconnectBtn: "disconnectBtn",
+
+    price: "price",
+    total: "total",
+
+    mintBtn: "mintBtn",
+    mintHint: "mintHint",
+
+    cmAddressInput: "cmAddressInput",
+    setCmBtn: "setCmBtn",
+
+    stickyMintBar: "stickyMintBar",
+    stickyTierLabel: "stickyTierLabel",
+    stickyActionBtn: "stickyActionBtn",
+    stickyChangeBtn: "stickyChangeBtn",
+
+    tiersSection: "tiers",
+    mintSection: "mint",
+  };
+
+  const TIER_MAP = {
+    "littlegen": "lgen",
+    "biggen": "bgen",
+    "littlegen-diamond": "ldia",
+    "biggen-diamond": "bdia",
+  };
+
+  const TIER_LABEL = {
+    lgen: "LittlGEN",
+    bgen: "BigGEN",
+    ldia: "LittlGEN Diamond",
+    bdia: "BigGEN Diamond",
+  };
+
+  const state = {
+    tier: null,
+    tierLabel: null,
+    guardLabel: "—",
     walletConnected: false,
     walletLabel: "Not connected",
     networkLabel: "—",
     ready: false,
     priceLabel: "—",
+    totalLabel: "—",
   };
 
-  // -------- helpers
-  const $ = (sel) => document.querySelector(sel);
-  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-
-  const safeText = (el, t) => { if (el) el.textContent = t; };
-  const safeShow = (el, on) => { if (el) el.style.display = on ? "" : "none"; };
-
-  function injectStyles() {
-    if ($("#tonfans-ui-style")) return;
-    const s = document.createElement("style");
-    s.id = "tonfans-ui-style";
-    s.textContent = `
-      .tonfans-tier-selected{
-        outline: 2px solid rgba(0, 255, 209, .9);
-        outline-offset: 2px;
-        box-shadow: 0 0 0 6px rgba(0, 255, 209, .12);
-        border-radius: 18px;
-      }
-      .tonfans-disabled{
-        opacity: .55 !important;
-        pointer-events: none !important;
-        filter: grayscale(.2);
-      }
-      #tonfans-sticky{
-        position: fixed;
-        left: 16px;
-        right: 16px;
-        bottom: 14px;
-        z-index: 9999;
-        display: none;
-      }
-      #tonfans-sticky .tf-wrap{
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        background: rgba(10,16,24,.82);
-        border: 1px solid rgba(255,255,255,.08);
-        border-radius: 18px;
-        padding: 12px 12px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        box-shadow: 0 10px 30px rgba(0,0,0,.45);
-      }
-      #tonfans-sticky .tf-left{
-        flex: 1;
-        display:flex;
-        flex-direction:column;
-        gap:4px;
-        min-width: 0;
-      }
-      #tonfans-sticky .tf-title{
-        font-size: 12px;
-        opacity: .75;
-      }
-      #tonfans-sticky .tf-sub{
-        font-size: 14px;
-        font-weight: 600;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      #tonfans-sticky button{
-        border-radius: 14px;
-      }
-    `;
-    document.head.appendChild(s);
+  function shortAddr(addr) {
+    if (!addr) return "—";
+    const s = String(addr);
+    if (s.length <= 10) return s;
+    return `${s.slice(0, 4)}…${s.slice(-4)}`;
   }
 
-  function ensureSticky() {
-    if ($("#tonfans-sticky")) return;
-
-    const wrap = document.createElement("div");
-    wrap.id = "tonfans-sticky";
-    wrap.innerHTML = `
-      <div class="tf-wrap">
-        <div class="tf-left">
-          <div class="tf-title">TON Fans</div>
-          <div class="tf-sub" id="tfStickyLine">Select tier → Connect → Mint</div>
-        </div>
-        <button id="tfStickyConnect" type="button">Connect</button>
-        <button id="tfStickyMint" type="button">Mint now</button>
-      </div>
-    `;
-    document.body.appendChild(wrap);
-
-    $("#tfStickyConnect").addEventListener("click", () => {
-      window.TONFANS?.mint?.toggleConnect?.();
-    });
-    $("#tfStickyMint").addEventListener("click", () => {
-      window.TONFANS?.mint?.mintNow?.();
-    });
+  function scrollToTiers() {
+    const sec = $("#" + IDS.tiersSection);
+    if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(() => {
+      sec?.classList?.add("tier-pulse");
+      setTimeout(() => sec?.classList?.remove("tier-pulse"), 900);
+    }, 350);
   }
 
-  // -------- element discovery (не завязано на твои конкретные id)
-  function findTopChipValue(labelText) {
-    // ищем "Wallet" / "Ready" / "Network" и берем соседний span/div
-    const candidates = $$("body *")
-      .filter(el => el && el.children && el.children.length >= 2)
-      .slice(0, 8000);
+  function setTier(tierKey) {
+    state.tier = tierKey;
+    state.tierLabel = tierKey ? (TIER_LABEL[tierKey] || tierKey) : null;
 
-    for (const el of candidates) {
-      const a = el.children[0];
-      const b = el.children[1];
-      if (!a || !b) continue;
-      const t = (a.textContent || "").trim().toLowerCase();
-      if (t === labelText.toLowerCase()) return b;
-    }
-    return null;
-  }
-
-  function findMintButtons() {
-    // кнопки "Mint now" на странице
-    const btns = $$("button,a").filter(el => /mint now/i.test((el.textContent || "").trim()));
-    return btns;
-  }
-
-  function findConnectButtons() {
-    const btns = $$("button,a").filter(el => {
-      const tx = (el.textContent || "").trim().toLowerCase();
-      return tx === "connect" || tx.startsWith("connected:") || tx === "disconnect";
-    });
-    return btns;
-  }
-
-  function findTierCards() {
-    // 1) если есть data-tier — супер
-    let cards = $$("[data-tier]");
-    if (cards.length) return cards;
-
-    // 2) fallback: карточки где внутри текст LittlGEN/BigGEN
-    const all = $$("div,section,article");
-    cards = all.filter(el => {
-      const t = (el.textContent || "");
-      return /LittlGEN|BigGEN/i.test(t) && el.querySelector("button, a") == null;
-    });
-    // слишком много? режем
-    return cards.slice(0, 12);
-  }
-
-  function tierKeyFromCard(el) {
-    const dt = el.getAttribute("data-tier");
-    if (dt) return dt;
-
-    const t = (el.textContent || "").toLowerCase();
-    const isLittle = t.includes("littlgen");
-    const isBig = t.includes("biggen");
-    const isDiamond = t.includes("diamond");
-
-    if (isLittle && isDiamond) return "ldia";
-    if (isBig && isDiamond) return "bdia";
-    if (isLittle) return "lgen";
-    if (isBig) return "bgen";
-    return null;
-  }
-
-  // -------- render
-  function recomputeReady() {
-    STATE.ready = Boolean(STATE.walletConnected && STATE.tier);
-  }
-
-  function render() {
-    recomputeReady();
-
-    // верхние чипы
-    const topWallet = findTopChipValue("Wallet");
-    const topReady = findTopChipValue("Ready");
-    const topNet = findTopChipValue("Network");
-
-    safeText(topWallet, STATE.walletConnected ? STATE.walletLabel : "Not connected");
-    safeText(topReady, STATE.ready ? "Yes" : "No");
-    safeText(topNet, STATE.networkLabel || "—");
-
-    // selected tier box (если есть)
-    const selTierName = $("#selectedTierName") || $(".selected-tier-name");
-    const selGuard = $("#selectedTierGuard") || $(".selected-tier-guard");
-    if (selTierName) safeText(selTierName, STATE.tier ? STATE.tier.toUpperCase() : "—");
-    if (selGuard) safeText(selGuard, STATE.tier ? "guard: default" : "guard: —");
-
-    // price
-    const priceEl = $("#mintPrice") || $("#priceValue") || $(".price-value");
-    if (priceEl) safeText(priceEl, STATE.priceLabel || "—");
-
-    // кнопки connect/disconnect
-    const connectBtns = findConnectButtons();
-    connectBtns.forEach(b => {
-      if (!STATE.walletConnected) {
-        b.textContent = "Connect";
-        b.classList.remove("tonfans-disabled");
-      } else {
-        // делаем как у тебя было: Connected: ...
-        b.textContent = `Connected: ${STATE.walletLabel}`;
-        b.classList.remove("tonfans-disabled");
-      }
+    $$(".tier-card[data-tier]").forEach((card) => {
+      const raw = (card.getAttribute("data-tier") || "").toLowerCase();
+      const k = TIER_MAP[raw];
+      card.classList.toggle("tier-selected", k === tierKey);
     });
 
-    // mint кнопки
-    const mintBtns = findMintButtons();
-    mintBtns.forEach(b => {
-      if (STATE.ready) b.classList.remove("tonfans-disabled");
-      else b.classList.add("tonfans-disabled");
-    });
-
-    // sticky line
-    const stickyLine = $("#tfStickyLine");
-    if (stickyLine) {
-      stickyLine.textContent = STATE.walletConnected
-        ? (STATE.tier ? `Tier: ${STATE.tier.toUpperCase()} • ${STATE.walletLabel}` : `Select tier • ${STATE.walletLabel}`)
-        : "Select tier → Connect → Mint";
-    }
-
-    // sticky buttons state
-    const stMint = $("#tfStickyMint");
-    const stConn = $("#tfStickyConnect");
-    if (stConn) stConn.textContent = STATE.walletConnected ? `Connected: ${STATE.walletLabel}` : "Connect";
-    if (stMint) {
-      if (STATE.ready) stMint.classList.remove("tonfans-disabled");
-      else stMint.classList.add("tonfans-disabled");
-    }
+    window.dispatchEvent(new CustomEvent("tonfans:tier", { detail: { tier: tierKey } }));
   }
 
-  // -------- tier selection UI
-  function setSelectedTier(tier) {
-    STATE.tier = tier;
-
-    const cards = findTierCards();
-    cards.forEach(c => c.classList.remove("tonfans-tier-selected"));
-
-    const selected = cards.find(c => tierKeyFromCard(c) === tier);
-    if (selected) selected.classList.add("tonfans-tier-selected");
-
-    // сообщаем mint-скрипту
-    window.dispatchEvent(new CustomEvent("tonfans:tier", { detail: { tier } }));
-    render();
-  }
-
-  function wireTierClicks() {
-    const cards = findTierCards();
-    cards.forEach(card => {
+  function wireTierCards() {
+    $$(".tier-card[data-tier]").forEach((card) => {
       card.style.cursor = "pointer";
-      card.addEventListener("click", () => {
-        const tier = tierKeyFromCard(card);
-        if (tier) setSelectedTier(tier);
-      });
+      card.onclick = () => {
+        const raw = (card.getAttribute("data-tier") || "").toLowerCase();
+        const key = TIER_MAP[raw] || null;
+        if (key) setTier(key);
+      };
+    });
+
+    // Any "change tier" elements scroll to tiers
+    $$(".change-tier-btn, a[href='#tiers']").forEach((el) => {
+      el.onclick = (e) => {
+        e.preventDefault();
+        scrollToTiers();
+      };
     });
   }
 
-  function wireConnectClicks() {
-    // любая "Connect"/"Connected" кнопка будет toggle connect/disconnect
-    findConnectButtons().forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        window.TONFANS?.mint?.toggleConnect?.();
-      });
-    });
+  function wireButtons() {
+    const connectBtn = $("#" + IDS.connectBtn);
+    const disconnectBtn = $("#" + IDS.disconnectBtn);
+    const mintBtn = $("#" + IDS.mintBtn);
+    const setCmBtn = $("#" + IDS.setCmBtn);
+
+    if (connectBtn) connectBtn.onclick = (e) => { e.preventDefault(); window.TONFANS?.mint?.toggleConnect?.(); };
+    if (disconnectBtn) disconnectBtn.onclick = (e) => { e.preventDefault(); window.TONFANS?.mint?.toggleConnect?.(); };
+    if (mintBtn) mintBtn.onclick = (e) => { e.preventDefault(); window.TONFANS?.mint?.mintNow?.(); };
+
+    if (setCmBtn) setCmBtn.onclick = (e) => {
+      e.preventDefault();
+      const v = ($("#" + IDS.cmAddressInput)?.value || "").trim();
+      if (!v) return;
+      window.TONFANS?.mint?.setCm?.(v);
+    };
+
+    // Sticky bar buttons
+    const stickyAction = $("#" + IDS.stickyActionBtn);
+    const stickyChange = $("#" + IDS.stickyChangeBtn);
+
+    if (stickyChange) stickyChange.onclick = (e) => { e.preventDefault(); scrollToTiers(); };
+
+    if (stickyAction) stickyAction.onclick = (e) => {
+      e.preventDefault();
+      if (!state.walletConnected) return window.TONFANS?.mint?.toggleConnect?.();
+      if (!state.tier) return scrollToTiers();
+      if (!state.ready) return window.TONFANS?.mint?.setTier?.(state.tier);
+      return window.TONFANS?.mint?.mintNow?.();
+    };
   }
 
   function stickyVisibility() {
-    const sticky = $("#tonfans-sticky");
+    const sticky = $("#" + IDS.stickyMintBar);
     if (!sticky) return;
 
-    // если есть секция mint — используем её как триггер
-    const mintSection = $("#mint") || $("#section-mint") || document.querySelector("section");
-    const y = window.scrollY || 0;
+    const mint = $("#" + IDS.mintSection);
+    let show = (window.scrollY || 0) > 600;
 
-    let show = y > 420;
-    if (mintSection && mintSection.getBoundingClientRect) {
-      const r = mintSection.getBoundingClientRect();
-      // когда mint ушёл вверх — показываем
-      show = r.top < -80;
+    if (mint && mint.getBoundingClientRect) {
+      const r = mint.getBoundingClientRect();
+      show = r.top < -120;
     }
+
     sticky.style.display = show ? "" : "none";
   }
 
-  // -------- external state events from mint.js
+  function render() {
+    // pills
+    const netPill = $("#" + IDS.netPill);
+    const walletPill = $("#" + IDS.walletPill);
+    const readyPill = $("#" + IDS.readyPill);
+
+    if (netPill) netPill.textContent = state.networkLabel || "—";
+    if (walletPill) walletPill.textContent = state.walletConnected ? shortAddr(state.walletLabel) : "Not connected";
+    if (readyPill) readyPill.textContent = state.ready ? "Yes" : "No";
+
+    // Selected tier box
+    const nameEl = $("#" + IDS.selectedTierName);
+    const guardEl = $("#" + IDS.selectedTierGuard);
+    if (nameEl) nameEl.textContent = state.tierLabel || "—";
+    if (guardEl) guardEl.textContent = `guard: ${state.guardLabel || "—"}`;
+
+    // Wallet card
+    const walletStatus = $("#" + IDS.walletStatus);
+    const walletAddr = $("#" + IDS.walletAddr);
+    if (walletStatus) walletStatus.textContent = state.walletConnected ? "Connected" : "Not connected";
+    if (walletAddr) walletAddr.textContent = state.walletConnected ? `Connected: ${shortAddr(state.walletLabel)}` : "Connect wallet";
+
+    // Connect/disconnect visibility
+    const connectBtn = $("#" + IDS.connectBtn);
+    const disconnectBtn = $("#" + IDS.disconnectBtn);
+    if (connectBtn) connectBtn.style.display = state.walletConnected ? "none" : "";
+    if (disconnectBtn) disconnectBtn.style.display = state.walletConnected ? "" : "none";
+
+    // Price + total
+    const priceEl = $("#" + IDS.price);
+    const totalEl = $("#" + IDS.total);
+    if (priceEl) priceEl.textContent = state.priceLabel || "—";
+    if (totalEl) totalEl.textContent = state.totalLabel || "—";
+
+    // Mint button
+    const mintBtn = $("#" + IDS.mintBtn);
+    if (mintBtn) {
+      mintBtn.disabled = !state.ready;
+      mintBtn.classList.toggle("opacity-60", !state.ready);
+      mintBtn.classList.toggle("cursor-not-allowed", !state.ready);
+    }
+
+    // Hint
+    const hint = $("#" + IDS.mintHint);
+    if (hint) {
+      if (!state.walletConnected) hint.textContent = "Disconnected.";
+      else if (!state.tier) hint.textContent = "Select a tier.";
+      else if (!state.ready) hint.textContent = "Setting Candy Guard…";
+      else hint.textContent = "Ready. Click Mint now.";
+    }
+
+    // Sticky
+    const stickyLabel = $("#" + IDS.stickyTierLabel);
+    const stickyAction = $("#" + IDS.stickyActionBtn);
+    if (stickyLabel) stickyLabel.textContent = state.tierLabel ? `Tier: ${state.tierLabel}` : "Tier: —";
+
+    if (stickyAction) {
+      if (!state.walletConnected) stickyAction.textContent = "Connect";
+      else if (!state.tier) stickyAction.textContent = "Select tier";
+      else if (!state.ready) stickyAction.textContent = "Preparing…";
+      else stickyAction.textContent = "Mint now";
+    }
+  }
+
   window.addEventListener("tonfans:state", (e) => {
     const d = e.detail || {};
-    if (typeof d.walletConnected === "boolean") STATE.walletConnected = d.walletConnected;
-    if (typeof d.walletLabel === "string") STATE.walletLabel = d.walletLabel;
-    if (typeof d.networkLabel === "string") STATE.networkLabel = d.networkLabel;
-    if (typeof d.priceLabel === "string") STATE.priceLabel = d.priceLabel;
-    if (typeof d.tier === "string") STATE.tier = d.tier;
+    if (typeof d.walletConnected === "boolean") state.walletConnected = d.walletConnected;
+    if (typeof d.walletLabel === "string") state.walletLabel = d.walletLabel;
+    if (typeof d.networkLabel === "string") state.networkLabel = d.networkLabel;
+
+    if (typeof d.tier === "string" || d.tier === null) state.tier = d.tier;
+    if (typeof d.tierLabel === "string" || d.tierLabel === null) state.tierLabel = d.tierLabel;
+
+    if (typeof d.guardLabel === "string") state.guardLabel = d.guardLabel;
+
+    if (typeof d.ready === "boolean") state.ready = d.ready;
+
+    if (typeof d.priceLabel === "string") state.priceLabel = d.priceLabel;
+    if (typeof d.totalLabel === "string") state.totalLabel = d.totalLabel;
+
     render();
   });
 
-  // -------- init
   function init() {
-    injectStyles();
-    ensureSticky();
-    wireTierClicks();
-    wireConnectClicks();
+    wireTierCards();
+    wireButtons();
     render();
 
     window.addEventListener("scroll", stickyVisibility, { passive: true });
@@ -306,9 +248,6 @@
     stickyVisibility();
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
 })();
