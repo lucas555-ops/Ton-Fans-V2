@@ -1,4 +1,4 @@
-// assets/js/ui.js (v11) — TON Fans UI for your index.html
+// assets/js/ui.js (v14) — TON Fans UI for your index.html
 // Fixes:
 // - Top pills: do NOT duplicate labels (Network/Wallet/Ready already present in HTML)
 // - Quantity max 3 enforced (plus/minus + input)
