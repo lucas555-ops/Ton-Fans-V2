@@ -891,3 +891,13 @@ window.TONFANS.mint = {
   if (saved) setTier(saved).catch(()=>{});
   else emit();
 })();
+
+// Инициализация UI после загрузки
+document.addEventListener('DOMContentLoaded', () => {
+  // Trigger initial render
+  if (window.__TONFANS_STATE__) {
+    window.dispatchEvent(new CustomEvent("tonfans:state", { 
+      detail: window.__TONFANS_STATE__ 
+    }));
+  }
+});
