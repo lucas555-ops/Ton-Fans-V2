@@ -1,4 +1,4 @@
-// assets/js/mint.js (v21) — TON Fans (DEVNET)
+// assets/js/mint.js (v17) — TON Fans (DEVNET)
 // Fixes:
 // - RPC 403/CORS: hard devnet RPC list + failover
 // - More robust supply parsing (avoid false "Sold out" due to NaN/0 parsing)
@@ -16,7 +16,7 @@ const MINT_LIMIT_ID = 1;          // must match your Candy Guard mintLimit.id
 const MAX_QTY = 3;                // project rule: max 3 per wallet
 const CU_LIMIT = 800_000;
 
-console.log("[TONFANS] mint.js v21 loaded");
+console.log("[TONFANS] mint.js v19 loaded");
 
 // Devnet CM addresses (your approved list)
 const CM_BY_TIER = {
@@ -70,39 +70,6 @@ function emitToast(message, kind="info"){
 }
 function emitQty(qty){
   try { window.dispatchEvent(new CustomEvent("tonfans:qty", { detail: { qty: Number(qty||1) } })); } catch {}
-}
-
-function emitTx(signatures){
-  try {
-    const sigs = Array.isArray(signatures) ? signatures.filter(Boolean).map(String) : [];
-    window.dispatchEvent(new CustomEvent("tonfans:tx", { detail: { signatures: sigs, cluster: CLUSTER } }));
-  } catch {}
-}
-
-let __BS58 = null;
-async function loadBs58(){
-  if (__BS58) return __BS58;
-  const m = await import("https://esm.sh/bs58@5.0.0");
-  __BS58 = m?.default || m;
-  return __BS58;
-}
-
-async function signatureToString(res){
-  if (!res) return null;
-  // Sometimes sendAndConfirm returns { signature }, or the signature itself.
-  const sig = res.signature ?? res.result?.signature ?? res;
-  if (!sig) return null;
-  if (typeof sig === "string") return sig;
-  // Umi sometimes gives Uint8Array, or { bytes: Uint8Array }
-  const bytes = sig.bytes ?? sig;
-  if (bytes instanceof Uint8Array) {
-    try { const b = await loadBs58(); return b.encode(bytes); } catch { return null; }
-  }
-  // Array<number> -> Uint8Array
-  if (Array.isArray(bytes)) {
-    try { const b = await loadBs58(); return b.encode(Uint8Array.from(bytes)); } catch { return null; }
-  }
-  try { return String(sig); } catch { return null; }
 }
 
 // ---- MintLimit counter (Candy Guard mintLimit)
@@ -698,8 +665,6 @@ try {
     const cua = (typeof collectionUpdateAuthority === 'string') ? SDK.publicKey(String(collectionUpdateAuthority)) : collectionUpdateAuthority;
     const cMint = (typeof collectionMint === 'string') ? SDK.publicKey(String(collectionMint)) : collectionMint;
 
-    const sigs = [];
-
     for (let i=0;i<q;i++){
       const nftMint = sdk.generateSigner(umi);
       const ix = sdk.mintV2(umi, {
@@ -719,9 +684,7 @@ try {
 
       // send with retry if blockhash expires while user approves in wallet
       try {
-        const __res = await builder.sendAndConfirm(umi);
-        const __sig = await signatureToString(__res);
-        if (__sig) sigs.push(__sig);
+        await builder.sendAndConfirm(umi);
       } catch (e) {
         if (isBlockhashNotFound(e) || isRecentBlockhashFailed(e)) {
           setHint("RPC/blockhash hiccup — retrying with fresh blockhash…", "info");
@@ -730,9 +693,7 @@ try {
           const builder2 = sdk.transactionBuilder()
             .add(sdk.setComputeUnitLimit(umi, { units: CU_LIMIT }))
             .add(ix);
-          const __res2 = await builder2.sendAndConfirm(umi);
-          const __sig2 = await signatureToString(__res2);
-          if (__sig2) sigs.push(__sig2);
+          await builder2.sendAndConfirm(umi);
         } else {
           throw e;
         }
@@ -741,7 +702,6 @@ try {
     }
 
     setHint("Mint complete.", "ok");
-    if (sigs && sigs.length) emitTx(sigs);
     emitQty(1);
     try { if (state.walletConnected) await updateWalletMintCounter(); } catch {}
     await refresh();
