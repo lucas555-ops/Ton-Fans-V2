@@ -1,8 +1,11 @@
-// assets/js/ui.js (v18) — TON Fans UI for your index.html
-// Adds "Minted: X/3" + "Remaining: Y/3", toast popup, qty reset after success,
-// and dynamic qty max based on remaining (prevents user from selecting > remaining).
+// assets/js/ui.js (v19) — TON Fans UI for your index.html
+// Fixes:
+// - Quantity buttons properly blocked when remaining = 0
+// - Mint button disabled when limit reached
+// - Counter display shows correct values
+// - Toast notifications work correctly
 (() => {
-  console.log("[TONFANS] ui.js v18 loaded");
+  console.log("[TONFANS] ui.js v19 loaded");
 
   const $ = (id) => document.getElementById(id);
 
@@ -37,7 +40,6 @@
   };
 
   const MAX_QTY = 3;
-  let currentMaxQty = MAX_QTY;
 
   const tierCards = () => Array.from(document.querySelectorAll(".tier-card[data-tier]"));
 
@@ -113,14 +115,12 @@
     if (!els.qty) return;
     let q = Math.floor(Number(v || 1));
     if (!Number.isFinite(q) || q < 1) q = 1;
-
-    const max = Number.isFinite(Number(currentMaxQty)) ? Number(currentMaxQty) : MAX_QTY;
-    if (q > max) q = max;
+    if (q > MAX_QTY) q = MAX_QTY;
 
     if ("value" in els.qty) {
       els.qty.value = String(q);
       els.qty.setAttribute("min","1");
-      els.qty.setAttribute("max", String(max));
+      els.qty.setAttribute("max", String(MAX_QTY));
     } else {
       els.qty.textContent = String(q);
     }
@@ -136,7 +136,9 @@
   }
 
   function canMint(s){
-    return !!s.walletConnected && !!s.ready && !s.busy;
+    // Can mint if: wallet connected, ready, not busy, AND has remaining mints
+    const hasRemaining = s.mintedRemaining === null || s.mintedRemaining > 0;
+    return !!s.walletConnected && !!s.ready && !s.busy && hasRemaining;
   }
 
   // extra UI lines
@@ -173,14 +175,10 @@
     ensureExtraEls();
 
     // minted / remaining from mint.js
-    const minted = Number.isFinite(Number(s.mintedCount)) ? Number(s.mintedCount) : null;
-    const remaining = Number.isFinite(Number(s.mintedRemaining)) ? Number(s.mintedRemaining)
-      : (minted == null ? null : Math.max(0, MAX_QTY - minted));
+    const minted = s.mintedCount !== null ? Number(s.mintedCount) : null;
+    const remaining = s.mintedRemaining !== null ? Number(s.mintedRemaining) : null;
 
-    // dynamic max qty based on remaining (but always allow showing at least 1)
-    if (remaining == null) currentMaxQty = MAX_QTY;
-    else currentMaxQty = Math.max(1, Math.min(MAX_QTY, remaining));
-
+    // Display counters
     if (mintedLineEl) mintedLineEl.textContent = `Minted: ${(minted == null ? "—" : minted)}/3`;
     if (qtyRemainingEl) qtyRemainingEl.textContent = `Remaining: ${(remaining == null ? "—" : remaining)}/3`;
 
@@ -213,27 +211,36 @@
       if (show) setText(els.stickySelected, s.tierLabel || "—");
     }
 
-    // Quantity clamp + disable buttons
-    setQty(getQty());
+    // Quantity buttons - disable if no remaining mints OR if at min/max
+    const currentQty = getQty();
+    const hasRemaining = remaining === null || remaining > 0;
+    
     if (els.qtyMinus) {
-      const dis = getQty() <= 1;
+      const atMin = currentQty <= 1;
+      const dis = atMin || !hasRemaining;
       els.qtyMinus.disabled = dis;
       els.qtyMinus.style.opacity = dis ? ".55" : "1";
       els.qtyMinus.style.cursor = dis ? "not-allowed" : "pointer";
     }
+    
     if (els.qtyPlus) {
-      const dis = getQty() >= currentMaxQty;
+      const atMax = currentQty >= MAX_QTY;
+      const dis = atMax || !hasRemaining;
       els.qtyPlus.disabled = dis;
       els.qtyPlus.style.opacity = dis ? ".55" : "1";
       els.qtyPlus.style.cursor = dis ? "not-allowed" : "pointer";
+      
+      // Store for click handler
+      els.qtyPlus.dataset.hasRemaining = hasRemaining;
+      els.qtyPlus.dataset.remaining = remaining;
     }
 
     // Price + total
     setText(els.price, fmtSol(s.priceSol));
-    const total = (s.priceSol == null) ? null : (Number(s.priceSol) * getQty());
+    const total = (s.priceSol == null) ? null : (Number(s.priceSol) * currentQty);
     setText(els.total, fmtSol(total));
 
-    // Mint button
+    // Mint button - disable if no remaining mints
     if (els.mintBtn){
       const ok = canMint(s);
       els.mintBtn.disabled = !ok;
@@ -242,7 +249,7 @@
       els.mintBtn.style.cursor = ok ? "pointer" : "not-allowed";
     }
 
-    // Sticky action
+    // Sticky action button
     if (els.stickyActionBtn){
       if (!s.walletConnected) {
         els.stickyActionBtn.textContent = "Connect";
@@ -290,7 +297,7 @@
       }, { capture: true });
     }
 
-    // qty buttons
+    // qty minus button
     if (els.qtyMinus) els.qtyMinus.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -300,22 +307,28 @@
       render(window.__TONFANS_STATE__ || {});
     }, { capture: true });
 
+    // qty plus button
     if (els.qtyPlus) els.qtyPlus.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      
       if (els.qtyPlus.disabled) {
         const s = window.__TONFANS_STATE__ || {};
-        const rem = Number.isFinite(Number(s.mintedRemaining)) ? Number(s.mintedRemaining) : null;
-        if (rem === 0) toast("Mint limit reached (3 per wallet)", "error");
-        else if (rem != null) toast(`Only ${rem}/3 remaining.`, "info");
+        const rem = s.mintedRemaining;
+        if (rem === 0) {
+          toast("Mint limit reached (3 per wallet)", "error");
+        } else if (rem != null && rem < MAX_QTY) {
+          toast(`Only ${rem}/3 remaining.`, "info");
+        }
         return;
       }
+      
       setQty(getQty() + 1);
       render(window.__TONFANS_STATE__ || {});
     }, { capture: true });
 
-    // input support
+    // qty input support
     if (els.qty && ("value" in els.qty)) els.qty.addEventListener("input", (e) => {
       e.stopPropagation();
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
@@ -323,7 +336,7 @@
       render(window.__TONFANS_STATE__ || {});
     }, { capture: true });
 
-    // connect/disconnect
+    // connect/disconnect buttons
     if (els.connectBtn) els.connectBtn.addEventListener("click", (e) => {
       e.preventDefault();
       mintApi()?.toggleConnect?.().catch(()=>{});
@@ -333,7 +346,7 @@
       mintApi()?.toggleConnect?.().catch(()=>{});
     });
 
-    // mint main
+    // mint main button
     if (els.mintBtn) els.mintBtn.addEventListener("click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -345,7 +358,7 @@
       }
     }, { capture: true });
 
-    // sticky action
+    // sticky action button
     if (els.stickyActionBtn) els.stickyActionBtn.addEventListener("click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -365,18 +378,19 @@
       }
     }, { capture: true });
 
-    // sticky change tier
+    // sticky change tier button
     if (els.stickyChangeBtn) els.stickyChangeBtn.addEventListener("click", (e) => {
       e.preventDefault();
       location.hash = "#tiers";
       try { document.getElementById("tiers")?.scrollIntoView({ behavior: "smooth" }); } catch {}
     });
 
-    // toast / qty events from mint.js
+    // listen for toast events from mint.js
     window.addEventListener("tonfans:toast", (e) => {
       try { toast(e?.detail?.message, e?.detail?.kind || "info"); } catch {}
     });
 
+    // listen for qty change events from mint.js
     window.addEventListener("tonfans:qty", (e) => {
       try {
         const q = Number(e?.detail?.qty);
@@ -387,7 +401,14 @@
       } catch {}
     });
 
-    window.addEventListener("tonfans:state", (e) => render(e.detail));
+    // listen for state updates from mint.js
+    window.addEventListener("tonfans:state", (e) => {
+      try {
+        render(e.detail);
+      } catch (err) {
+        console.error("[TONFANS] Error rendering state:", err);
+      }
+    });
   }
 
   function boot(){
