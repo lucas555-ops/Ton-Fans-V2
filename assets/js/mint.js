@@ -342,6 +342,41 @@ const state = {
   hintKind: "info",
 };
 
+// --- Local (client-side) mint limit tracking (UX only) ---
+// Candy Guard enforces the limit on-chain, BUT when the guard rejects a mint it can still
+// finalize the transaction and charge botTax (0.01 SOL) with NO NFT minted.
+// We keep a small local counter per wallet+tier to avoid accidental extra attempts.
+
+function mintCounterKey(){
+  const w = state.wallet || "";
+  const t = state.tierKey || "";
+  return `tonfans:minted:${w}:${t}`;
+}
+
+function getLocalMinted(){
+  try {
+    const v = localStorage.getItem(mintCounterKey());
+    const n = Number(v || 0);
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setLocalMinted(n){
+  try { localStorage.setItem(mintCounterKey(), String(Math.max(0, Math.floor(n || 0)))); } catch {}
+}
+
+function incLocalMinted(by = 1){
+  const next = getLocalMinted() + (Number(by) || 0);
+  setLocalMinted(next);
+  return next;
+}
+
+function toast(msg, kind = "info"){
+  // ui.js exposes window.TONFANS_UI.toast
+  try { window.TONFANS_UI?.toast?.(msg, kind); } catch {}
+}
 function getState(){ return JSON.parse(JSON.stringify(state)); }
 
 // Resolve collection update authority safely (prevents CandyGuard PublicKeyMismatch)
@@ -495,7 +530,21 @@ async function mintNow(qty=1){
   if (!state.walletConnected) throw new Error("Connect wallet first.");
   if (!state.ready) throw new Error(state.itemsRemaining === 0 ? "Sold out." : "Not ready.");
 
-  const q = Math.max(1, Math.min(MAX_QTY, Number(qty || 1)));
+  let q = Math.max(1, Math.min(MAX_QTY, Number(qty || 1)));
+
+  // UX: prevent accidental bot-tax charges by blocking above the on-chain mintLimit.
+  const mintedLocal = getLocalMinted();
+  const remainingLocal = Math.max(0, LOCAL_MINT_LIMIT - mintedLocal);
+  if (remainingLocal <= 0) {
+    const msg = `Mint limit reached: ${LOCAL_MINT_LIMIT}/${LOCAL_MINT_LIMIT} for this wallet (tier: ${state.tierKey}). Switch wallet to mint more.`;
+    toast(msg, "warn");
+    setHint(msg, "warn");
+    return;
+  }
+  if (q > remainingLocal) {
+    q = remainingLocal;
+    toast(`Wallet remaining (tier): ${remainingLocal}. Quantity adjusted.`, "info");
+  }
 
   setBusy(true, "Minting…");
   setHint(`Minting x${q}…`, "info");
@@ -558,6 +607,7 @@ async function mintNow(qty=1){
     const cua = (typeof collectionUpdateAuthority === 'string') ? SDK.publicKey(String(collectionUpdateAuthority)) : collectionUpdateAuthority;
     const cMint = (typeof collectionMint === 'string') ? SDK.publicKey(String(collectionMint)) : collectionMint;
 
+    let blockedByGuard = false;
     for (let i=0;i<q;i++){
       const nftMint = sdk.generateSigner(umi);
       const ix = sdk.mintV2(umi, {
@@ -576,8 +626,11 @@ async function mintNow(qty=1){
         .add(ix);
 
       // send with retry if blockhash expires while user approves in wallet
+      let sig = null;
       try {
-        await builder.sendAndConfirm(umi);
+        const res = await builder.sendAndConfirm(umi);
+        // Umi returns different shapes depending on version; keep it resilient.
+        sig = res?.signature ? String(res.signature) : (res ? String(res) : null);
       } catch (e) {
         if (isBlockhashNotFound(e) || isRecentBlockhashFailed(e)) {
           setHint("RPC/blockhash hiccup — retrying with fresh blockhash…", "info");
@@ -586,15 +639,37 @@ async function mintNow(qty=1){
           const builder2 = sdk.transactionBuilder()
             .add(sdk.setComputeUnitLimit(umi, { units: CU_LIMIT }))
             .add(ix);
-          await builder2.sendAndConfirm(umi);
+          const res2 = await builder2.sendAndConfirm(umi);
+          sig = res2?.signature ? String(res2.signature) : (res2 ? String(res2) : null);
         } else {
           throw e;
         }
       }
+
+      // Guard rejections can still finalize (botTax) — verify the NFT mint account exists.
+      let mintedOk = false;
+      try {
+        await umi.rpc.getAccount(nftMint.publicKey);
+        mintedOk = true;
+      } catch {
+        mintedOk = false;
+      }
+
+      if (!mintedOk) {
+        blockedByGuard = true;
+        const msg = `Mint blocked by Candy Guard — limit is ${MINT_LIMIT_AMOUNT} per wallet. No NFT minted. (botTax may still charge ~0.01 SOL). ${sig ? `Tx: ${sig}` : ""}`;
+        toast(msg, "warn");
+        setHint(msg, "warn");
+        break;
+      }
+
+      bumpLocalMinted(1);
       await sleep(150);
     }
 
-    setHint("Mint complete.", "ok");
+    if (!blockedByGuard) {
+      setHint("Mint complete.", "ok");
+    }
     await refresh();
   } catch (e) {
     setHint(e?.message || String(e), "error");
