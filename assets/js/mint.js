@@ -1,4 +1,4 @@
-// assets/js/mint.js (v17) — TON Fans (DEVNET)
+// assets/js/mint.js (v21) — TON Fans (DEVNET)
 // Fixes:
 // - RPC 403/CORS: hard devnet RPC list + failover
 // - More robust supply parsing (avoid false "Sold out" due to NaN/0 parsing)
@@ -16,7 +16,7 @@ const MINT_LIMIT_ID = 1;          // must match your Candy Guard mintLimit.id
 const MAX_QTY = 3;                // project rule: max 3 per wallet
 const CU_LIMIT = 800_000;
 
-console.log("[TONFANS] mint.js v15 loaded");
+console.log("[TONFANS] mint.js v21 loaded");
 
 // Devnet CM addresses (your approved list)
 const CM_BY_TIER = {
@@ -64,7 +64,117 @@ function setBusy(on, label=""){
   state.busy = !!on;
   state.busyLabel = label || "";
   emit();
+}// ---- UI helper events (ui.js listens)
+function emitToast(message, kind="info"){
+  try { window.dispatchEvent(new CustomEvent("tonfans:toast", { detail: { message: String(message||""), kind } })); } catch {}
 }
+function emitQty(qty){
+  try { window.dispatchEvent(new CustomEvent("tonfans:qty", { detail: { qty: Number(qty||1) } })); } catch {}
+}
+
+function emitTx(signatures){
+  try {
+    const sigs = Array.isArray(signatures) ? signatures.filter(Boolean).map(String) : [];
+    window.dispatchEvent(new CustomEvent("tonfans:tx", { detail: { signatures: sigs, cluster: CLUSTER } }));
+  } catch {}
+}
+
+let __BS58 = null;
+async function loadBs58(){
+  if (__BS58) return __BS58;
+  const m = await import("https://esm.sh/bs58@5.0.0");
+  __BS58 = m?.default || m;
+  return __BS58;
+}
+
+async function signatureToString(res){
+  if (!res) return null;
+  // Sometimes sendAndConfirm returns { signature }, or the signature itself.
+  const sig = res.signature ?? res.result?.signature ?? res;
+  if (!sig) return null;
+  if (typeof sig === "string") return sig;
+  // Umi sometimes gives Uint8Array, or { bytes: Uint8Array }
+  const bytes = sig.bytes ?? sig;
+  if (bytes instanceof Uint8Array) {
+    try { const b = await loadBs58(); return b.encode(bytes); } catch { return null; }
+  }
+  // Array<number> -> Uint8Array
+  if (Array.isArray(bytes)) {
+    try { const b = await loadBs58(); return b.encode(Uint8Array.from(bytes)); } catch { return null; }
+  }
+  try { return String(sig); } catch { return null; }
+}
+
+// ---- MintLimit counter (Candy Guard mintLimit)
+let CGSDK = null;
+async function loadCandyGuardSdk(){
+  if (CGSDK) return CGSDK;
+  // version chosen to match Candy Machine v6 + Umi v1
+  CGSDK = await import("https://esm.sh/@metaplex-foundation/mpl-candy-guard@0.7.0?bundle");
+  return CGSDK;
+}
+
+function extractMintCounterCount(counter){
+  if (!counter) return 0;
+  const c = counter.count ?? counter.mintCount ?? counter.minted ?? counter.value ?? 0;
+  try {
+    if (typeof c === "bigint") return Number(c);
+    if (typeof c === "number") return c;
+    if (typeof c === "string") return Number(c);
+    return Number(c?.toString?.() ?? 0);
+  } catch { return 0; }
+}
+
+async function fetchWalletMintedCount(){
+  if (!state.walletConnected || !state.wallet || !state.guardPk) return null;
+  try {
+    await loadSdk();
+    if (!umi) await rebuildUmi();
+    attachWalletIdentity();
+    const sdk = SDK;
+    const cg = await loadCandyGuardSdk();
+
+    const userPk = sdk.publicKey(String(state.wallet));
+    const guardPk = sdk.publicKey(String(state.guardPk));
+    const id = MINT_LIMIT_ID;
+
+    // Find PDA (prefer helper if present)
+    let pda = null;
+    if (typeof cg.findMintCounterPda === "function"){
+      pda = cg.findMintCounterPda(umi, { id, user: userPk, candyGuard: guardPk });
+    } else if (typeof cg.findMintCounterPdaFromSeeds === "function"){
+      pda = cg.findMintCounterPdaFromSeeds(umi, { id, user: userPk, candyGuard: guardPk });
+    }
+
+    // Safe fetch (prefer safeFetch if present)
+    let counter = null;
+    if (typeof cg.safeFetchMintCounter === "function" && pda){
+      counter = await withFailover(() => cg.safeFetchMintCounter(umi, pda));
+    } else if (typeof cg.safeFetchMintCounterFromSeeds === "function"){
+      counter = await withFailover(() => cg.safeFetchMintCounterFromSeeds(umi, { id, user: userPk, candyGuard: guardPk }));
+    } else if (typeof cg.fetchMintCounter === "function"){
+      if (!pda) throw new Error("MintCounter PDA helper missing");
+      counter = await withFailover(() => cg.fetchMintCounter(umi, pda));
+    } else if (typeof cg.fetchMintCounterFromSeeds === "function"){
+      counter = await withFailover(() => cg.fetchMintCounterFromSeeds(umi, { id, user: userPk, candyGuard: guardPk }));
+    }
+
+    if (!counter) return 0; // not initialized yet => 0 minted
+    return extractMintCounterCount(counter);
+  } catch (e){
+    // can't read counter -> let on-chain guard enforce, but we won't block mint client-side
+    return null;
+  }
+}
+
+async function updateWalletMintCounter(){
+  const minted = await fetchWalletMintedCount();
+  state.mintedCount = minted;
+  state.mintedRemaining = (minted == null) ? null : Math.max(0, MAX_QTY - Number(minted||0));
+  emit();
+}
+
+
 
 function normalizeTier(t){
   const key = String(t||"").trim();
@@ -334,6 +444,8 @@ const state = {
   // flags
   ready: false,
   mintLimit: MAX_QTY,
+  mintedCount: null,          // number minted by this wallet (mintLimit id)
+  mintedRemaining: null,      // remaining mints for this wallet (0..3)
 
   // ui
   busy: false,
@@ -342,41 +454,6 @@ const state = {
   hintKind: "info",
 };
 
-// --- Local (client-side) mint limit tracking (UX only) ---
-// Candy Guard enforces the limit on-chain, BUT when the guard rejects a mint it can still
-// finalize the transaction and charge botTax (0.01 SOL) with NO NFT minted.
-// We keep a small local counter per wallet+tier to avoid accidental extra attempts.
-
-function mintCounterKey(){
-  const w = state.wallet || "";
-  const t = state.tierKey || "";
-  return `tonfans:minted:${w}:${t}`;
-}
-
-function getLocalMinted(){
-  try {
-    const v = localStorage.getItem(mintCounterKey());
-    const n = Number(v || 0);
-    return Number.isFinite(n) ? n : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function setLocalMinted(n){
-  try { localStorage.setItem(mintCounterKey(), String(Math.max(0, Math.floor(n || 0)))); } catch {}
-}
-
-function incLocalMinted(by = 1){
-  const next = getLocalMinted() + (Number(by) || 0);
-  setLocalMinted(next);
-  return next;
-}
-
-function toast(msg, kind = "info"){
-  // ui.js exposes window.TONFANS_UI.toast
-  try { window.TONFANS_UI?.toast?.(msg, kind); } catch {}
-}
 function getState(){ return JSON.parse(JSON.stringify(state)); }
 
 // Resolve collection update authority safely (prevents CandyGuard PublicKeyMismatch)
@@ -513,6 +590,7 @@ async function refresh(){
       const grp = state.guardGroup ? `group: ${state.guardGroup}` : "base guards";
       setHint(`Ready (${grp}${d}, ${p}${sup}).`, "ok");
     }
+    try { if (state.walletConnected) await updateWalletMintCounter(); } catch {}
 
     emit();
   } catch (e) {
@@ -532,19 +610,32 @@ async function mintNow(qty=1){
 
   let q = Math.max(1, Math.min(MAX_QTY, Number(qty || 1)));
 
-  // UX: prevent accidental bot-tax charges by blocking above the on-chain mintLimit.
-  const mintedLocal = getLocalMinted();
-  const remainingLocal = Math.max(0, LOCAL_MINT_LIMIT - mintedLocal);
-  if (remainingLocal <= 0) {
-    const msg = `Mint limit reached: ${LOCAL_MINT_LIMIT}/${LOCAL_MINT_LIMIT} for this wallet (tier: ${state.tierKey}). Switch wallet to mint more.`;
-    toast(msg, "warn");
-    setHint(msg, "warn");
-    return;
+
+// ---- Client-side mintLimit precheck (prevents botTax when already 3/3)
+try {
+  if (state.walletConnected && state.guardPk){
+    const minted = await fetchWalletMintedCount();
+    if (minted != null){
+      state.mintedCount = minted;
+      state.mintedRemaining = Math.max(0, MAX_QTY - Number(minted||0));
+      emit();
+
+      const remaining = state.mintedRemaining;
+      if (remaining <= 0){
+        setHint("Mint limit reached (3 per wallet).", "error");
+        emitToast("Mint limit reached (3 per wallet)", "warn");
+        // Do NOT send any transaction (no bot tax)
+        return;
+      }
+      if (q > remaining){
+        q = remaining;
+        emitQty(q);
+        emitToast(`Only ${remaining}/3 remaining for this wallet — minting ${q} now.`, "info");
+        setHint(`Only ${remaining}/3 remaining — minting x${q}.`, "info");
+      }
+    }
   }
-  if (q > remainingLocal) {
-    q = remainingLocal;
-    toast(`Wallet remaining (tier): ${remainingLocal}. Quantity adjusted.`, "info");
-  }
+} catch {}
 
   setBusy(true, "Minting…");
   setHint(`Minting x${q}…`, "info");
@@ -607,7 +698,8 @@ async function mintNow(qty=1){
     const cua = (typeof collectionUpdateAuthority === 'string') ? SDK.publicKey(String(collectionUpdateAuthority)) : collectionUpdateAuthority;
     const cMint = (typeof collectionMint === 'string') ? SDK.publicKey(String(collectionMint)) : collectionMint;
 
-    let blockedByGuard = false;
+    const sigs = [];
+
     for (let i=0;i<q;i++){
       const nftMint = sdk.generateSigner(umi);
       const ix = sdk.mintV2(umi, {
@@ -626,11 +718,10 @@ async function mintNow(qty=1){
         .add(ix);
 
       // send with retry if blockhash expires while user approves in wallet
-      let sig = null;
       try {
-        const res = await builder.sendAndConfirm(umi);
-        // Umi returns different shapes depending on version; keep it resilient.
-        sig = res?.signature ? String(res.signature) : (res ? String(res) : null);
+        const __res = await builder.sendAndConfirm(umi);
+        const __sig = await signatureToString(__res);
+        if (__sig) sigs.push(__sig);
       } catch (e) {
         if (isBlockhashNotFound(e) || isRecentBlockhashFailed(e)) {
           setHint("RPC/blockhash hiccup — retrying with fresh blockhash…", "info");
@@ -639,37 +730,20 @@ async function mintNow(qty=1){
           const builder2 = sdk.transactionBuilder()
             .add(sdk.setComputeUnitLimit(umi, { units: CU_LIMIT }))
             .add(ix);
-          const res2 = await builder2.sendAndConfirm(umi);
-          sig = res2?.signature ? String(res2.signature) : (res2 ? String(res2) : null);
+          const __res2 = await builder2.sendAndConfirm(umi);
+          const __sig2 = await signatureToString(__res2);
+          if (__sig2) sigs.push(__sig2);
         } else {
           throw e;
         }
       }
-
-      // Guard rejections can still finalize (botTax) — verify the NFT mint account exists.
-      let mintedOk = false;
-      try {
-        await umi.rpc.getAccount(nftMint.publicKey);
-        mintedOk = true;
-      } catch {
-        mintedOk = false;
-      }
-
-      if (!mintedOk) {
-        blockedByGuard = true;
-        const msg = `Mint blocked by Candy Guard — limit is ${MINT_LIMIT_AMOUNT} per wallet. No NFT minted. (botTax may still charge ~0.01 SOL). ${sig ? `Tx: ${sig}` : ""}`;
-        toast(msg, "warn");
-        setHint(msg, "warn");
-        break;
-      }
-
-      bumpLocalMinted(1);
       await sleep(150);
     }
 
-    if (!blockedByGuard) {
-      setHint("Mint complete.", "ok");
-    }
+    setHint("Mint complete.", "ok");
+    if (sigs && sigs.length) emitTx(sigs);
+    emitQty(1);
+    try { if (state.walletConnected) await updateWalletMintCounter(); } catch {}
     await refresh();
   } catch (e) {
     setHint(e?.message || String(e), "error");
