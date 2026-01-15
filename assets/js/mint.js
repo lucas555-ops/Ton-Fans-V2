@@ -1,10 +1,11 @@
-// assets/js/mint.js (v18) — TON Fans (DEVNET)
+// assets/js/mint.js (v19) — TON Fans (DEVNET)
 // Fixes:
 // - RPC 403/CORS: hard devnet RPC list + failover
 // - More robust supply parsing (avoid false "Sold out" due to NaN/0 parsing)
 // - Group/guard resolution + price
 // - Exposes window.TONFANS.mint API for ui.js
 // - Added mint counter pre-check to prevent botTax when limit reached
+// - Fixed counter display issues and button blocking
 
 const DEVNET_RPCS = [
   "https://api.devnet.solana.com",
@@ -17,7 +18,7 @@ const MINT_LIMIT_ID = 1;          // must match your Candy Guard mintLimit.id
 const MAX_QTY = 3;                // project rule: max 3 per wallet
 const CU_LIMIT = 800_000;
 
-console.log("[TONFANS] mint.js v18 loaded");
+console.log("[TONFANS] mint.js v19 loaded");
 
 // Devnet CM addresses (your approved list)
 const CM_BY_TIER = {
@@ -132,6 +133,12 @@ function extractCounterCount(counter){
 
 async function fetchMintedCountOnChain(){
   if (!state.walletConnected || !state.wallet || !state.guardPk) return null;
+  
+  console.log("[TONFANS] Fetching mint counter for:", {
+    wallet: state.walletShort,
+    guard: state.guardPk ? shortPk(state.guardPk) : null
+  });
+  
   try {
     await loadSdk();
     if (!umi) await rebuildUmi();
@@ -142,35 +149,69 @@ async function fetchMintedCountOnChain(){
     const candyGuard = sdk.publicKey(String(state.guardPk));
     const id = MINT_LIMIT_ID;
 
+    let counter = null;
+    
+    // Try safeFetchMintCounterFromSeeds first
     if (typeof cg.safeFetchMintCounterFromSeeds === "function"){
       try {
-        const counter = await withFailover(async () => await cg.safeFetchMintCounterFromSeeds(umi, { id, user, candyGuard }));
-        return extractCounterCount(counter);
-      } catch {}
+        counter = await cg.safeFetchMintCounterFromSeeds(umi, { id, user, candyGuard });
+        console.log("[TONFANS] Counter from safeFetchMintCounterFromSeeds:", counter);
+      } catch (e) {
+        console.log("[TONFANS] safeFetchMintCounterFromSeeds error:", e.message);
+      }
     }
 
-    if (typeof cg.findMintCounterPda === "function" && typeof cg.fetchMintCounter === "function"){
-      const pda = cg.findMintCounterPda(umi, { id, user, candyGuard });
-      const counter = await withFailover(async () => await cg.fetchMintCounter(umi, pda));
-      return extractCounterCount(counter);
+    // Fallback to findMintCounterPda + fetchMintCounter
+    if (!counter && typeof cg.findMintCounterPda === "function" && typeof cg.fetchMintCounter === "function"){
+      try {
+        const pda = cg.findMintCounterPda(umi, { id, user, candyGuard });
+        counter = await cg.fetchMintCounter(umi, pda);
+        console.log("[TONFANS] Counter from fetchMintCounter:", counter);
+      } catch (e) {
+        console.log("[TONFANS] fetchMintCounter error:", e.message);
+      }
     }
 
-    return null;
-  } catch {
+    // If counter doesn't exist (user hasn't minted yet), return 0
+    if (!counter) {
+      console.log("[TONFANS] No counter found, assuming 0 mints");
+      return 0;
+    }
+
+    const count = extractCounterCount(counter);
+    console.log("[TONFANS] Extracted count:", count);
+    return count;
+  } catch (error) {
+    console.error("[TONFANS] Error fetching mint counter:", error);
     return null;
   }
 }
 
 async function updateWalletMintCounter(){
   const cnt = await fetchMintedCountOnChain();
-  if (cnt == null){
+  
+  // Handle null response (error or not connected)
+  if (cnt === null) {
     state.mintedCount = null;
     state.mintedRemaining = null;
     return null;
   }
+  
+  // cnt should be a number (0, 1, 2, 3, or more)
   const capped = Math.min(MAX_QTY, cnt);
   state.mintedCount = capped;
   state.mintedRemaining = Math.max(0, MAX_QTY - capped);
+  
+  console.log("[TONFANS] Updated counters:", {
+    mintedCount: state.mintedCount,
+    mintedRemaining: state.mintedRemaining
+  });
+  
+  // If no remaining mints, reset quantity to 1
+  if (state.mintedRemaining === 0) {
+    emitQty(1);
+  }
+  
   return capped;
 }
 
@@ -189,6 +230,7 @@ async function connectWallet(){
   state.wallet = p.publicKey ? p.publicKey.toString() : null;
   state.walletShort = state.wallet ? shortPk(state.wallet) : null;
   emit();
+  await refresh();
 }
 
 async function disconnectWallet(){
@@ -204,7 +246,7 @@ async function toggleConnect(){
   const p = getProvider();
   if (!p) throw new Error("No Solana wallet found.");
   if (p.publicKey) await disconnectWallet();
-  else { await connectWallet(); await refresh(); }
+  else { await connectWallet(); }
 }
 
 // -------- SDK dynamic import
@@ -500,6 +542,8 @@ async function setTier(tierRaw){
   state.itemsRemaining = null;
   state.priceSol = null;
   state.ready = false;
+  state.mintedCount = null;
+  state.mintedRemaining = null;
 
   try { localStorage.setItem("tonfans:tier", tierRaw || ""); } catch {}
   emit();
@@ -509,11 +553,6 @@ async function setTier(tierRaw){
     return;
   }
 
-  if (!state.isFree && !state.solDestination) {
-    setHint('Missing solPayment destination from Candy Guard. Re-check guard config (solPayment destination) or use base guards.', 'error');
-    emit();
-    return;
-  }
   await refresh();
 }
 
@@ -591,6 +630,7 @@ async function refresh(){
       setHint(`Ready (${grp}${d}, ${p}${sup}).`, "ok");
     }
 
+    // Update mint counter for current wallet
     await updateWalletMintCounter();
     emit();
   } catch (e) {
@@ -613,7 +653,8 @@ async function mintNow(qty=1){
   // Pre-check mintLimit to avoid botTax when user already minted 3/3
   await updateWalletMintCounter();
 
-  if (Number.isFinite(Number(state.mintedRemaining))) {
+  // Check if we have valid counter data
+  if (state.mintedRemaining !== null) {
     const remaining = Number(state.mintedRemaining);
 
     if (remaining <= 0) {
@@ -626,18 +667,27 @@ async function mintNow(qty=1){
     }
 
     if (q > remaining) {
-      const msg = `Only ${remaining}/3 remaining — quantity adjusted to ${remaining}.`;
+      const msg = `Only ${remaining}/3 remaining — adjusting quantity to ${remaining}.`;
       setHint(msg, "info");
       emitToast(msg, "info");
-      emitQty(remaining);
-      // NOTE: we can't re-declare const q, so we just stop here and let UI re-run with adjusted qty
-      emit();
+      
+      // Try minting with adjusted quantity
+      try {
+        await _executeMint(remaining);
+      } catch (err) {
+        // Error will be handled in _executeMint
+      }
       return;
     }
   }
 
+  // Proceed with requested quantity
+  await _executeMint(q);
+}
+
+async function _executeMint(qty){
   setBusy(true, "Minting…");
-  setHint(`Minting x${q}…`, "info");
+  setHint(`Minting x${qty}…`, "info");
 
   try {
     await loadSdk();
@@ -697,7 +747,7 @@ async function mintNow(qty=1){
     const cua = (typeof collectionUpdateAuthority === 'string') ? SDK.publicKey(String(collectionUpdateAuthority)) : collectionUpdateAuthority;
     const cMint = (typeof collectionMint === 'string') ? SDK.publicKey(String(collectionMint)) : collectionMint;
 
-    for (let i=0;i<q;i++){
+    for (let i=0;i<qty;i++){
       const nftMint = sdk.generateSigner(umi);
       const ix = sdk.mintV2(umi, {
         candyMachine: cm.publicKey || cmPk,
@@ -737,7 +787,10 @@ async function mintNow(qty=1){
     emitQty(1);
     setHint("Mint complete.", "ok");
     emitToast("Mint successful!", "ok");
-    await refresh();
+    
+    // Refresh to update counters
+    await updateWalletMintCounter();
+    emit();
   } catch (e) {
     setHint(e?.message || String(e), "error");
     emitToast(e?.message || "Mint failed", "error");
@@ -755,10 +808,35 @@ window.TONFANS.mint = { setTier, toggleConnect, refresh, mintNow, getState };
   const p = getProvider();
   if (p?.on) {
     try {
-      p.on("connect", () => { state.walletConnected = !!p.publicKey; state.wallet = p.publicKey?.toString?.()||null; state.walletShort = state.wallet?shortPk(state.wallet):null; emit(); refresh().catch(()=>{}); });
-      p.on("disconnect", () => { state.walletConnected = false; state.wallet=null; state.walletShort=null; emit(); });
-      p.on("accountChanged", (pk) => { state.walletConnected=!!pk; state.wallet=pk?.toString?.()||null; state.walletShort=state.wallet?shortPk(state.wallet):null; emit(); refresh().catch(()=>{}); });
+      p.on("connect", () => { 
+        state.walletConnected = !!p.publicKey; 
+        state.wallet = p.publicKey?.toString?.()||null; 
+        state.walletShort = state.wallet?shortPk(state.wallet):null; 
+        emit(); 
+        refresh().catch(()=>{}); 
+      });
+      p.on("disconnect", () => { 
+        state.walletConnected = false; 
+        state.wallet=null; 
+        state.walletShort=null; 
+        emit(); 
+      });
+      p.on("accountChanged", (pk) => { 
+        state.walletConnected=!!pk; 
+        state.wallet=pk?.toString?.()||null; 
+        state.walletShort=state.wallet?shortPk(state.wallet):null; 
+        emit(); 
+        refresh().catch(()=>{}); 
+      });
     } catch {}
+  }
+
+  // Check if wallet is already connected
+  if (p?.publicKey) {
+    state.walletConnected = true;
+    state.wallet = p.publicKey.toString();
+    state.walletShort = shortPk(state.wallet);
+    emit();
   }
 
   let saved = null;
