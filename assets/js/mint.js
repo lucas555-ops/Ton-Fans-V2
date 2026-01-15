@@ -1,4 +1,4 @@
-// assets/js/mint.js (v19) — TON Fans (DEVNET)
+// assets/js/mint.js (v20) — TON Fans (DEVNET)
 // Fixes:
 // - RPC 403/CORS: hard devnet RPC list + failover
 // - More robust supply parsing (avoid false "Sold out" due to NaN/0 parsing)
@@ -6,6 +6,10 @@
 // - Exposes window.TONFANS.mint API for ui.js
 // - Added mint counter pre-check to prevent botTax when limit reached
 // - Fixed counter display issues and button blocking
+// - Supply always updates even when mintedRemaining = null
+// - Progress bar for "X/Y minted"
+// - No botTax when limit reached (early return)
+// - View on Solscan + Copy tx buttons
 
 const DEVNET_RPCS = [
   "https://api.devnet.solana.com",
@@ -18,7 +22,7 @@ const MINT_LIMIT_ID = 1;          // must match your Candy Guard mintLimit.id
 const MAX_QTY = 3;                // project rule: max 3 per wallet
 const CU_LIMIT = 800_000;
 
-console.log("[TONFANS] mint.js v19 loaded");
+console.log("[TONFANS] mint.js v20 loaded");
 
 // Devnet CM addresses (your approved list)
 const CM_BY_TIER = {
@@ -85,6 +89,12 @@ function emitQty(qty){
   } catch {}
 }
 
+function emitSupplyUpdate(supplyData){
+  try {
+    window.dispatchEvent(new CustomEvent("tonfans:supply", { detail: supplyData }));
+  } catch {}
+}
+
 // Candy Guard mint counter helpers (for mintLimit pre-check)
 // Prevents botTax when wallet already hit 3/3.
 let CGSDK = null;
@@ -134,11 +144,6 @@ function extractCounterCount(counter){
 async function fetchMintedCountOnChain(){
   if (!state.walletConnected || !state.wallet || !state.guardPk) return null;
   
-  console.log("[TONFANS] Fetching mint counter for:", {
-    wallet: state.walletShort,
-    guard: state.guardPk ? shortPk(state.guardPk) : null
-  });
-  
   try {
     await loadSdk();
     if (!umi) await rebuildUmi();
@@ -155,10 +160,7 @@ async function fetchMintedCountOnChain(){
     if (typeof cg.safeFetchMintCounterFromSeeds === "function"){
       try {
         counter = await cg.safeFetchMintCounterFromSeeds(umi, { id, user, candyGuard });
-        console.log("[TONFANS] Counter from safeFetchMintCounterFromSeeds:", counter);
-      } catch (e) {
-        console.log("[TONFANS] safeFetchMintCounterFromSeeds error:", e.message);
-      }
+      } catch {}
     }
 
     // Fallback to findMintCounterPda + fetchMintCounter
@@ -166,21 +168,15 @@ async function fetchMintedCountOnChain(){
       try {
         const pda = cg.findMintCounterPda(umi, { id, user, candyGuard });
         counter = await cg.fetchMintCounter(umi, pda);
-        console.log("[TONFANS] Counter from fetchMintCounter:", counter);
-      } catch (e) {
-        console.log("[TONFANS] fetchMintCounter error:", e.message);
-      }
+      } catch {}
     }
 
     // If counter doesn't exist (user hasn't minted yet), return 0
     if (!counter) {
-      console.log("[TONFANS] No counter found, assuming 0 mints");
       return 0;
     }
 
-    const count = extractCounterCount(counter);
-    console.log("[TONFANS] Extracted count:", count);
-    return count;
+    return extractCounterCount(counter);
   } catch (error) {
     console.error("[TONFANS] Error fetching mint counter:", error);
     return null;
@@ -201,11 +197,6 @@ async function updateWalletMintCounter(){
   const capped = Math.min(MAX_QTY, cnt);
   state.mintedCount = capped;
   state.mintedRemaining = Math.max(0, MAX_QTY - capped);
-  
-  console.log("[TONFANS] Updated counters:", {
-    mintedCount: state.mintedCount,
-    mintedRemaining: state.mintedRemaining
-  });
   
   // If no remaining mints, reset quantity to 1
   if (state.mintedRemaining === 0) {
@@ -471,7 +462,7 @@ const state = {
   wallet: null,
   walletShort: null,
 
-  // supply
+  // supply (ALWAYS updates)
   itemsAvailable: null,
   itemsRedeemed: null,
   itemsRemaining: null,
@@ -488,6 +479,10 @@ const state = {
   // per-wallet mint counter (Candy Guard mintLimit)
   mintedCount: null,
   mintedRemaining: null,
+
+  // last transaction info (for View on Solscan + Copy)
+  lastTxSignature: null,
+  lastTxExplorerUrl: null,
 
   // ui
   busy: false,
@@ -544,6 +539,8 @@ async function setTier(tierRaw){
   state.ready = false;
   state.mintedCount = null;
   state.mintedRemaining = null;
+  state.lastTxSignature = null;
+  state.lastTxExplorerUrl = null;
 
   try { localStorage.setItem("tonfans:tier", tierRaw || ""); } catch {}
   emit();
@@ -630,6 +627,13 @@ async function refresh(){
       setHint(`Ready (${grp}${d}, ${p}${sup}).`, "ok");
     }
 
+    // ALWAYS emit supply update (even when mintedRemaining = null)
+    emitSupplyUpdate({
+      itemsAvailable: state.itemsAvailable,
+      itemsRedeemed: state.itemsRedeemed,
+      itemsRemaining: state.itemsRemaining
+    });
+
     // Update mint counter for current wallet
     await updateWalletMintCounter();
     emit();
@@ -653,18 +657,19 @@ async function mintNow(qty=1){
   // Pre-check mintLimit to avoid botTax when user already minted 3/3
   await updateWalletMintCounter();
 
-  // Check if we have valid counter data
+  // CRITICAL: If mintedRemaining <= 0, return EARLY without sending any transaction
+  if (state.mintedRemaining !== null && state.mintedRemaining <= 0) {
+    const msg = "Mint limit reached (3 per wallet)";
+    setHint(msg, "error");
+    emitToast(msg, "error");
+    emitQty(1);
+    emit();
+    return; // NO transaction sent = NO botTax
+  }
+
+  // Check if we have valid counter data and adjust quantity if needed
   if (state.mintedRemaining !== null) {
     const remaining = Number(state.mintedRemaining);
-
-    if (remaining <= 0) {
-      const msg = "Mint limit reached (3 per wallet)";
-      setHint(msg, "error");
-      emitToast(msg, "error");
-      emitQty(1);
-      emit();
-      return; // IMPORTANT: no tx sent -> no botTax
-    }
 
     if (q > remaining) {
       const msg = `Only ${remaining}/3 remaining — adjusting quantity to ${remaining}.`;
@@ -688,6 +693,10 @@ async function mintNow(qty=1){
 async function _executeMint(qty){
   setBusy(true, "Minting…");
   setHint(`Minting x${qty}…`, "info");
+
+  // Clear previous transaction info
+  state.lastTxSignature = null;
+  state.lastTxExplorerUrl = null;
 
   try {
     await loadSdk();
@@ -747,6 +756,8 @@ async function _executeMint(qty){
     const cua = (typeof collectionUpdateAuthority === 'string') ? SDK.publicKey(String(collectionUpdateAuthority)) : collectionUpdateAuthority;
     const cMint = (typeof collectionMint === 'string') ? SDK.publicKey(String(collectionMint)) : collectionMint;
 
+    let lastSignature = null;
+
     for (let i=0;i<qty;i++){
       const nftMint = sdk.generateSigner(umi);
       const ix = sdk.mintV2(umi, {
@@ -766,7 +777,7 @@ async function _executeMint(qty){
 
       // send with retry if blockhash expires while user approves in wallet
       try {
-        await builder.sendAndConfirm(umi);
+        lastSignature = await builder.sendAndConfirm(umi);
       } catch (e) {
         if (isBlockhashNotFound(e) || isRecentBlockhashFailed(e)) {
           setHint("RPC/blockhash hiccup — retrying with fresh blockhash…", "info");
@@ -775,7 +786,7 @@ async function _executeMint(qty){
           const builder2 = sdk.transactionBuilder()
             .add(sdk.setComputeUnitLimit(umi, { units: CU_LIMIT }))
             .add(ix);
-          await builder2.sendAndConfirm(umi);
+          lastSignature = await builder2.sendAndConfirm(umi);
         } else {
           throw e;
         }
@@ -783,14 +794,19 @@ async function _executeMint(qty){
       await sleep(150);
     }
 
+    // Save last transaction signature for View on Solscan
+    if (lastSignature) {
+      state.lastTxSignature = lastSignature;
+      state.lastTxExplorerUrl = `https://solscan.io/tx/${lastSignature}?cluster=devnet`;
+    }
+
     // After successful mint, reset quantity to 1
     emitQty(1);
     setHint("Mint complete.", "ok");
-    emitToast("Mint successful!", "ok");
+    emitToast("Mint successful! View on Solscan →", "ok");
     
-    // Refresh to update counters
-    await updateWalletMintCounter();
-    emit();
+    // Refresh to update counters and supply
+    await refresh();
   } catch (e) {
     setHint(e?.message || String(e), "error");
     emitToast(e?.message || "Mint failed", "error");
@@ -800,9 +816,40 @@ async function _executeMint(qty){
   }
 }
 
+// Copy transaction signature to clipboard
+function copyTxSignature(){
+  if (!state.lastTxSignature) return;
+  
+  navigator.clipboard.writeText(state.lastTxSignature)
+    .then(() => {
+      emitToast("Transaction signature copied!", "ok");
+    })
+    .catch(() => {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = state.lastTxSignature;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        emitToast("Transaction signature copied!", "ok");
+      } catch (err) {
+        emitToast("Failed to copy signature", "error");
+      }
+      document.body.removeChild(textArea);
+    });
+}
+
 // init + expose
 window.TONFANS = window.TONFANS || {};
-window.TONFANS.mint = { setTier, toggleConnect, refresh, mintNow, getState };
+window.TONFANS.mint = { 
+  setTier, 
+  toggleConnect, 
+  refresh, 
+  mintNow, 
+  getState,
+  copyTxSignature
+};
 
 (function init(){
   const p = getProvider();
