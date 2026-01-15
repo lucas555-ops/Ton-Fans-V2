@@ -1,10 +1,10 @@
-// assets/js/ui.js (v21) — TON Fans UI (pro-level UX)
+// assets/js/ui.js (v19) — TON Fans UI (pro-level UX)
 // - Shows Remaining + Minted counters (3 per wallet)
 // - Toast popups (English)
 // - Keeps Mint enabled at Remaining=0, but click only shows toast + "no transaction sent"
 // - Resets qty to 1 after successful mint
 (() => {
-  console.log("[TONFANS] ui.js v21 loaded");
+  console.log("[TONFANS] ui.js v19 loaded");
 
   const $ = (id) => document.getElementById(id);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -50,73 +50,6 @@
     stickyActionBtn: $("stickyActionBtn"),
     stickyChangeBtn: $("stickyChangeBtn"),
   };
-
-  // Supply pills under "One click. No confusion."
-  let supplyWrapEl = null;
-  let supplyMintedPill = null;
-  let supplyRemainPill = null;
-  // Jobs-style mint progress bar (supply)
-  let supplyBarWrapEl = null;
-  let supplyBarTextEl = null;
-  let supplyBarOuterEl = null;
-  let supplyBarInnerEl = null;
-
-  function ensureSupplyWrap(){
-    if (supplyWrapEl) return supplyWrapEl;
-    const h2 = $$("h2").find(h => (h.textContent || "").includes("One click. No confusion"));
-    if (!h2) return null;
-
-    supplyWrapEl = document.createElement("div");
-    supplyWrapEl.id = "supplyWrap";
-    supplyWrapEl.className = "mt-3 flex items-center gap-2 flex-wrap";
-
-    supplyMintedPill = document.createElement("span");
-    supplyMintedPill.className = "pill";
-    supplyMintedPill.textContent = "Supply: —";
-
-    supplyRemainPill = document.createElement("span");
-    supplyRemainPill.className = "pill";
-    supplyRemainPill.textContent = "Supply remaining: —";
-
-    supplyWrapEl.appendChild(supplyMintedPill);
-    supplyWrapEl.appendChild(supplyRemainPill);
-
-    h2.insertAdjacentElement("afterend", supplyWrapEl);
-
-    // Progress bar row (placed right under the pills)
-    supplyBarWrapEl = document.createElement("div");
-    supplyBarWrapEl.id = "supplyProgress";
-    supplyBarWrapEl.style.marginTop = "10px";
-    supplyBarWrapEl.style.width = "100%";
-    supplyBarWrapEl.style.maxWidth = "520px";
-
-    supplyBarTextEl = document.createElement("div");
-    supplyBarTextEl.className = "text-xs muted2";
-    supplyBarTextEl.style.marginBottom = "6px";
-    supplyBarTextEl.textContent = "Mint progress: —";
-
-    supplyBarOuterEl = document.createElement("div");
-    supplyBarOuterEl.style.height = "6px";
-    supplyBarOuterEl.style.borderRadius = "999px";
-    supplyBarOuterEl.style.overflow = "hidden";
-    supplyBarOuterEl.style.border = "1px solid rgba(255,255,255,.14)";
-    supplyBarOuterEl.style.background = "rgba(255,255,255,.06)";
-
-    supplyBarInnerEl = document.createElement("div");
-    supplyBarInnerEl.style.height = "100%";
-    supplyBarInnerEl.style.width = "0%";
-    supplyBarInnerEl.style.borderRadius = "999px";
-    supplyBarInnerEl.style.background = "rgba(255,255,255,.86)";
-    supplyBarInnerEl.style.transition = "width .25s ease";
-
-    supplyBarOuterEl.appendChild(supplyBarInnerEl);
-    supplyBarWrapEl.appendChild(supplyBarTextEl);
-    supplyBarWrapEl.appendChild(supplyBarOuterEl);
-
-    supplyWrapEl.insertAdjacentElement("afterend", supplyBarWrapEl);
-    return supplyWrapEl;
-  }
-
 
   function tierCards(){
     return $$(".tier-card[data-tier]");
@@ -254,25 +187,6 @@
     showToast(d.message || "", d.kind || "info");
   });
 
-  window.addEventListener("tonfans:tx", (ev) => {
-    try {
-      const sigs = ev?.detail?.signatures || [];
-      if (!Array.isArray(sigs) || !sigs.length) return;
-
-      const cluster = ev?.detail?.cluster || window.__TONFANS_STATE__?.cluster || "devnet";
-      const suffix = (cluster === "devnet") ? "?cluster=devnet" : "";
-
-      const links = sigs.map((sig, i) => {
-        const label = (sigs.length === 1) ? "View on Solscan" : `Tx ${i+1}`;
-        return `<a href="https://solscan.io/tx/${sig}${suffix}" target="_blank" rel="noopener" style="text-decoration:underline;">${label}</a>`;
-      });
-
-      txLinksEl.innerHTML = links.join(" • ");
-      txLinksEl.style.display = "block";
-    } catch {}
-  });
-
-
   // -------- Extra UI: Remaining + Minted + Limit note
   const qtyRemainingEl = document.createElement("span");
   qtyRemainingEl.className = "text-xs muted2 ml-2";
@@ -283,11 +197,6 @@
   mintedLineEl.className = "mt-2 text-xs muted2";
   mintedLineEl.style.whiteSpace = "nowrap";
 
-  const txLinksEl = document.createElement("div");
-  txLinksEl.className = "mt-1 text-xs muted2";
-  txLinksEl.style.whiteSpace = "nowrap";
-  txLinksEl.style.display = "none";
-
   const limitNoteEl = document.createElement("div");
   limitNoteEl.className = "mt-1 text-[11px] muted2";
   limitNoteEl.style.opacity = ".85";
@@ -296,14 +205,12 @@
 
   if (els.mintBtn && els.mintBtn.parentElement) {
     els.mintBtn.parentElement.appendChild(mintedLineEl);
-    els.mintBtn.parentElement.appendChild(txLinksEl);
     els.mintBtn.parentElement.appendChild(limitNoteEl);
   }
 
   // -------- Render
   function render(s){
     window.__TONFANS_STATE__ = s || {};
-    ensureSupplyWrap();
 
     // pills
     if (els.netPill) setText(els.netPill, s.cluster === "devnet" ? "Devnet" : (s.cluster || "—"));
@@ -339,28 +246,6 @@
     // price/total
     syncTotals();
 
-    // ---- Global supply (Candy Machine) + Jobs-style progress bar
-    if (supplyMintedPill && supplyRemainPill && Number.isFinite(s.itemsRedeemed) && Number.isFinite(s.itemsAvailable)) {
-      const total = Number(s.itemsAvailable);
-      const redeemed = Number(s.itemsRedeemed);
-      const remaining = (Number.isFinite(s.itemsRemaining) ? Number(s.itemsRemaining) : Math.max(0, total - redeemed));
-
-      supplyMintedPill.textContent = `Supply: ${redeemed}/${total} minted`;
-      supplyRemainPill.textContent = `Supply remaining: ${remaining}`;
-
-      // Progress bar
-      if (supplyBarWrapEl) supplyBarWrapEl.style.display = "";
-      if (supplyBarTextEl) supplyBarTextEl.textContent = `${redeemed} / ${total} minted`;
-      if (supplyBarInnerEl) {
-        const pct = (total > 0) ? Math.max(0, Math.min(1, redeemed / total)) : 0;
-        supplyBarInnerEl.style.width = `${Math.round(pct * 1000) / 10}%`;
-      }
-    } else {
-      if (supplyMintedPill) supplyMintedPill.textContent = "Supply: —";
-      if (supplyRemainPill) supplyRemainPill.textContent = "Supply remaining: —";
-      if (supplyBarWrapEl) supplyBarWrapEl.style.display = "none";
-    }
-
     // remaining + minted info
     if (s.mintedRemaining == null) {
       qtyRemainingEl.style.display = "none";
@@ -369,7 +254,6 @@
     } else {
       qtyRemainingEl.style.display = "";
       mintedLineEl.style.display = "";
-
       const minted = Number(s.mintedCount || 0);
       const rem = Math.max(0, Number(s.mintedRemaining || 0));
       qtyRemainingEl.textContent = `Remaining: ${rem}/${MAX_QTY}`;
