@@ -1,10 +1,13 @@
-// assets/js/ui.js (v21) — TON Fans UI for your index.html
+// assets/js/ui.js (v22) — TON Fans UI for your index.html
 // Fixes:
 // - Updated ID matching with HTML (shareX instead of shareOnX)
 // - Removed conflicting after mint section logic (simplified)
 // - Fixed supply container creation
+// - Fixed progress bar disappearance (don't clear container every render)
+// - Fixed Ready logic to only show Yes when wallet connected AND ready
+// - Added wallet address visibility toggle
 (() => {
-  console.log("[TONFANS] ui.js v21 loaded");
+  console.log("[TONFANS] ui.js v22 loaded");
 
   const $ = (id) => document.getElementById(id);
 
@@ -180,45 +183,80 @@
   let supplyBarText = null;
 
   function ensureSupplyWrap(){
-    const container = document.querySelector(".supply-container");
+    const container =
+      document.getElementById("supplyContainer") ||
+      document.querySelector(".supply-container");
+
     if (!container) return null;
-    
-    // Clear container first
-    container.innerHTML = '';
-    
-    // Create supply pills
-    supplyMintedPill = document.createElement("div");
-    supplyMintedPill.id = "supplyMintedPill";
-    supplyMintedPill.className = "text-xs muted2 mb-1";
-    supplyMintedPill.textContent = "Supply: —/— minted";
-    container.appendChild(supplyMintedPill);
-    
-    supplyRemainPill = document.createElement("div");
-    supplyRemainPill.id = "supplyRemainPill";
-    supplyRemainPill.className = "text-xs muted2 mb-2";
-    supplyRemainPill.textContent = "Supply remaining: —";
-    container.appendChild(supplyRemainPill);
-    
+
+    // DO NOT clear container every render.
+    // Ensure pills exist and are inside container.
+    const ensurePill = (existing, id, className, text, afterEl=null) => {
+      let el = existing || document.getElementById(id);
+      if (!el) {
+        el = document.createElement("div");
+        el.id = id;
+        el.className = className;
+        el.textContent = text;
+      } else {
+        // keep class stable
+        el.className = className;
+        if (!el.textContent) el.textContent = text;
+      }
+
+      if (!container.contains(el)) {
+        if (afterEl && container.contains(afterEl)) afterEl.insertAdjacentElement("afterend", el);
+        else container.appendChild(el);
+      }
+      return el;
+    };
+
+    supplyMintedPill = ensurePill(
+      supplyMintedPill,
+      "supplyMintedPill",
+      "text-xs muted2 mb-1",
+      "Supply: —/— minted"
+    );
+
+    supplyRemainPill = ensurePill(
+      supplyRemainPill,
+      "supplyRemainPill",
+      "text-xs muted2 mb-2",
+      "Supply remaining: —",
+      supplyMintedPill
+    );
+
     return container;
   }
 
   function ensureSupplyBar(){
     const wrap = ensureSupplyWrap();
-    if (!wrap || supplyBarWrap) return;
+    if (!wrap) return;
+
+    // If bar was created before but got detached (e.g. container was rewritten),
+    // drop refs so we can recreate.
+    if (supplyBarWrap && !wrap.contains(supplyBarWrap)) {
+      supplyBarWrap = null;
+      supplyBarFill = null;
+      supplyBarText = null;
+    }
+
+    if (supplyBarWrap) return;
 
     supplyBarWrap = document.createElement("div");
+    supplyBarWrap.id = "supplyBarWrap";
     supplyBarWrap.className = "w-full mt-1 mb-3";
 
     supplyBarText = document.createElement("div");
     supplyBarText.className = "text-xs muted2 mb-1 flex justify-between";
-    
+
     const leftSpan = document.createElement("span");
     leftSpan.textContent = "Minted";
-    
+
     const rightSpan = document.createElement("span");
     rightSpan.textContent = "— / —";
     rightSpan.id = "supplyBarNumbers";
-    
+
     supplyBarText.appendChild(leftSpan);
     supplyBarText.appendChild(rightSpan);
 
@@ -327,16 +365,22 @@
     // Sync price totals
     syncTotals();
 
-    // Top pills
+    // Top pills - Ready = Yes only when wallet connected AND ready
     if (els.netPill) setText(els.netPill, s.cluster === "devnet" ? "Devnet" : (s.cluster || "—"));
     if (els.walletPill) setText(els.walletPill, s.walletConnected ? (s.walletShort || "Connected") : "Not connected");
-    if (els.readyPill) setText(els.readyPill, s.ready ? "Yes" : "No");
+    
+    // FIXED: Ready shows Yes only when wallet connected AND ready
+    const readyToMint = !!s.walletConnected && !!s.ready;
+    if (els.readyPill) {
+      setText(els.readyPill, readyToMint ? "Yes" : "No");
+    }
 
     // Wallet card
     setText(els.walletStatus, s.walletConnected ? "Connected" : "Not connected");
     setText(els.walletAddr, s.walletConnected ? (s.walletShort || "") : "—");
     setHidden(els.connectBtn, !!s.walletConnected);
     setHidden(els.disconnectBtn, !s.walletConnected);
+    setHidden(els.walletAddr, !s.walletConnected); // Show address only when connected
 
     // Selected tier
     setText(els.selectedTierName, s.tierLabel || "—");
@@ -346,7 +390,10 @@
         ? `guard: ${String(s.guardPk).slice(0,4)}…${String(s.guardPk).slice(-4)}${s.guardGroup ? ` (${s.guardGroup})` : ""}`
         : "guard: —"
     );
-    setHidden(els.tierReady, !s.ready);
+    
+    // FIXED: tierReady only shows when wallet connected AND ready
+    setHidden(els.tierReady, !readyToMint);
+    
     highlightTier(s.tierRaw);
 
     // Sticky bar
