@@ -1,11 +1,14 @@
-// assets/js/ui.js (v19) — TON Fans UI for your index.html
+// assets/js/ui.js (v20) — TON Fans UI for your index.html
 // Fixes:
 // - Quantity buttons properly blocked when remaining = 0
 // - Mint button disabled when limit reached
 // - Counter display shows correct values
 // - Toast notifications work correctly
+// - Supply always updates (even when mintedRemaining = null)
+// - Progress bar for "X/Y minted"
+// - View on Solscan + Copy tx buttons after successful mint
 (() => {
-  console.log("[TONFANS] ui.js v19 loaded");
+  console.log("[TONFANS] ui.js v20 loaded");
 
   const $ = (id) => document.getElementById(id);
 
@@ -37,6 +40,12 @@
     stickySelected: $("stickySelected"),
     stickyActionBtn: $("stickyActionBtn"),
     stickyChangeBtn: $("stickyChangeBtn"),
+    
+    // After mint elements
+    afterMintSection: $("afterMintSection"),
+    shareOnX: $("shareOnX"),
+    explorerLink: $("explorerLink"),
+    copyTxBtn: $("copyTxBtn"),
   };
 
   const MAX_QTY = 3;
@@ -169,18 +178,169 @@
     }
   }
 
+  // Supply UI elements
+  let supplyMintedPill = null;
+  let supplyRemainPill = null;
+  let supplyBarWrap = null;
+  let supplyBarFill = null;
+  let supplyBarText = null;
+
+  function ensureSupplyWrap(){
+    const container = document.querySelector(".supply-container");
+    if (!container) return null;
+    
+    // Create supply pills if they don't exist
+    if (!supplyMintedPill) {
+      supplyMintedPill = document.getElementById("supplyMintedPill");
+      if (!supplyMintedPill) {
+        supplyMintedPill = document.createElement("div");
+        supplyMintedPill.id = "supplyMintedPill";
+        supplyMintedPill.className = "text-xs muted2 mb-1";
+        supplyMintedPill.textContent = "Supply: —/— minted";
+        container.appendChild(supplyMintedPill);
+      }
+    }
+    
+    if (!supplyRemainPill) {
+      supplyRemainPill = document.getElementById("supplyRemainPill");
+      if (!supplyRemainPill) {
+        supplyRemainPill = document.createElement("div");
+        supplyRemainPill.id = "supplyRemainPill";
+        supplyRemainPill.className = "text-xs muted2 mb-2";
+        supplyRemainPill.textContent = "Supply remaining: —";
+        container.appendChild(supplyRemainPill);
+      }
+    }
+    
+    return container;
+  }
+
+  function ensureSupplyBar(){
+    const wrap = ensureSupplyWrap();
+    if (!wrap || supplyBarWrap) return;
+
+    supplyBarWrap = document.createElement("div");
+    supplyBarWrap.className = "w-full mt-1 mb-3";
+
+    supplyBarText = document.createElement("div");
+    supplyBarText.className = "text-xs muted2 mb-1 flex justify-between";
+    
+    const leftSpan = document.createElement("span");
+    leftSpan.textContent = "Minted";
+    
+    const rightSpan = document.createElement("span");
+    rightSpan.textContent = "— / —";
+    rightSpan.id = "supplyBarNumbers";
+    
+    supplyBarText.appendChild(leftSpan);
+    supplyBarText.appendChild(rightSpan);
+
+    const outer = document.createElement("div");
+    outer.style.height = "6px";
+    outer.style.borderRadius = "999px";
+    outer.style.background = "rgba(255,255,255,.10)";
+    outer.style.overflow = "hidden";
+
+    supplyBarFill = document.createElement("div");
+    supplyBarFill.style.height = "100%";
+    supplyBarFill.style.width = "0%";
+    supplyBarFill.style.borderRadius = "999px";
+    supplyBarFill.style.background = "linear-gradient(90deg, rgba(120,255,180,0.9) 0%, rgba(100,200,255,0.9) 100%)";
+    supplyBarFill.style.transition = "width .35s ease";
+
+    outer.appendChild(supplyBarFill);
+    supplyBarWrap.appendChild(supplyBarText);
+    supplyBarWrap.appendChild(outer);
+
+    wrap.appendChild(supplyBarWrap);
+  }
+
+  function updateSupplyUI(s){
+    // Always update supply pills, even when mintedRemaining = null
+    if (supplyMintedPill && supplyRemainPill && 
+        Number.isFinite(s.itemsRedeemed) && Number.isFinite(s.itemsAvailable)) {
+      
+      const total = s.itemsAvailable;
+      const redeemed = s.itemsRedeemed;
+      const remaining = Number.isFinite(s.itemsRemaining) ? s.itemsRemaining : Math.max(0, total - redeemed);
+      
+      supplyMintedPill.textContent = `Supply: ${redeemed}/${total} minted`;
+      supplyRemainPill.textContent = `Supply remaining: ${remaining}`;
+    }
+    
+    // Update progress bar
+    if (supplyBarFill && supplyBarText && 
+        Number.isFinite(s.itemsRedeemed) && Number.isFinite(s.itemsAvailable) && s.itemsAvailable > 0) {
+      
+      const total = s.itemsAvailable;
+      const redeemed = s.itemsRedeemed;
+      const pct = Math.max(0, Math.min(100, (redeemed / total) * 100));
+      
+      const numbersSpan = document.getElementById("supplyBarNumbers");
+      if (numbersSpan) {
+        numbersSpan.textContent = `${redeemed} / ${total}`;
+      }
+      
+      supplyBarFill.style.width = `${pct}%`;
+    }
+  }
+
+  function syncTotals(){
+    const s = window.__TONFANS_STATE__ || {};
+    const currentQty = getQty();
+    
+    // Price + total
+    if (els.price) setText(els.price, fmtSol(s.priceSol));
+    
+    const total = (s.priceSol == null) ? null : (Number(s.priceSol) * currentQty);
+    if (els.total) setText(els.total, fmtSol(total));
+  }
+
+  function updateAfterMintUI(s){
+    if (!els.afterMintSection || !els.explorerLink || !els.copyTxBtn) return;
+    
+    const show = !!s.lastTxSignature;
+    setHidden(els.afterMintSection, !show);
+    
+    if (show && s.lastTxExplorerUrl) {
+      els.explorerLink.href = s.lastTxExplorerUrl;
+      els.explorerLink.textContent = "View on Solscan";
+      els.explorerLink.target = "_blank";
+      
+      // Update copy button
+      els.copyTxBtn.onclick = () => {
+        window.TONFANS?.mint?.copyTxSignature?.();
+      };
+      
+      // Update share on X link
+      if (els.shareOnX) {
+        const tierName = s.tierLabel || "TON Fans NFT";
+        const shareText = `Just minted ${tierName} on @ton_fans! ${s.lastTxExplorerUrl}`;
+        els.shareOnX.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
+        els.shareOnX.target = "_blank";
+      }
+    }
+  }
+
   function render(s){
     window.__TONFANS_STATE__ = s;
 
     ensureExtraEls();
+    ensureSupplyBar();
+
+    // Update supply UI (ALWAYS, even when mintedRemaining = null)
+    updateSupplyUI(s);
 
     // minted / remaining from mint.js
     const minted = s.mintedCount !== null ? Number(s.mintedCount) : null;
     const remaining = s.mintedRemaining !== null ? Number(s.mintedRemaining) : null;
 
-    // Display counters
+    // Display personal mint counters
     if (mintedLineEl) mintedLineEl.textContent = `Minted: ${(minted == null ? "—" : minted)}/3`;
     if (qtyRemainingEl) qtyRemainingEl.textContent = `Remaining: ${(remaining == null ? "—" : remaining)}/3`;
+
+    // Sync price totals
+    syncTotals();
 
     // Top pills
     if (els.netPill) setText(els.netPill, s.cluster === "devnet" ? "Devnet" : (s.cluster || "—"));
@@ -229,16 +389,7 @@
       els.qtyPlus.disabled = dis;
       els.qtyPlus.style.opacity = dis ? ".55" : "1";
       els.qtyPlus.style.cursor = dis ? "not-allowed" : "pointer";
-      
-      // Store for click handler
-      els.qtyPlus.dataset.hasRemaining = hasRemaining;
-      els.qtyPlus.dataset.remaining = remaining;
     }
-
-    // Price + total
-    setText(els.price, fmtSol(s.priceSol));
-    const total = (s.priceSol == null) ? null : (Number(s.priceSol) * currentQty);
-    setText(els.total, fmtSol(total));
 
     // Mint button - disable if no remaining mints
     if (els.mintBtn){
@@ -274,6 +425,9 @@
       els.mintHelp.textContent = s.tierRaw ? "Change tier →" : "Set CM address →";
       els.mintHelp.href = s.tierRaw ? "#tiers" : "#transparency";
     }
+
+    // Update "After mint" section
+    updateAfterMintUI(s);
   }
 
   function mintApi(){ return window.TONFANS?.mint; }
@@ -401,6 +555,24 @@
       } catch {}
     });
 
+    // listen for supply update events from mint.js
+    window.addEventListener("tonfans:supply", (e) => {
+      try {
+        const s = window.__TONFANS_STATE__ || {};
+        const supplyData = e.detail;
+        
+        // Update state with new supply data
+        s.itemsAvailable = supplyData.itemsAvailable;
+        s.itemsRedeemed = supplyData.itemsRedeemed;
+        s.itemsRemaining = supplyData.itemsRemaining;
+        
+        // Update UI
+        updateSupplyUI(s);
+      } catch (err) {
+        console.error("[TONFANS] Error updating supply:", err);
+      }
+    });
+
     // listen for state updates from mint.js
     window.addEventListener("tonfans:state", (e) => {
       try {
@@ -426,6 +598,11 @@
       hintKind: "info",
       mintedCount: null,
       mintedRemaining: null,
+      itemsAvailable: null,
+      itemsRedeemed: null,
+      itemsRemaining: null,
+      lastTxSignature: null,
+      lastTxExplorerUrl: null,
     };
     window.__TONFANS_STATE__ = init;
     render(init);
