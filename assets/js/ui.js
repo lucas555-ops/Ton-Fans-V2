@@ -333,20 +333,19 @@
       mintApi()?.toggleConnect?.().catch(()=>{});
     });
 
-    // mint main (await + reset qty=1 after success)
+    // mint main
     if (els.mintBtn) els.mintBtn.addEventListener("click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
       try {
         await mintApi()?.mintNow?.(getQty());
-        // setQty(1); // теперь через событие из mint.js
       } catch (err) {
-        toast(err?.message || String(err || "Mint failed"), "error");
+        // Error handled by mint.js toast
       }
     }, { capture: true });
 
-    // sticky action (await + reset qty=1 after success)
+    // sticky action
     if (els.stickyActionBtn) els.stickyActionBtn.addEventListener("click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -361,9 +360,8 @@
           return;
         }
         await api.mintNow?.(getQty());
-        // setQty(1); // теперь через событие из mint.js
       } catch (err) {
-        toast(err?.message || String(err || "Mint failed"), "error");
+        // Error handled by mint.js toast
       }
     }, { capture: true });
 
