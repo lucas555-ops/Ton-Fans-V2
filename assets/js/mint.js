@@ -1,30 +1,22 @@
-// assets/js/mint.js (v20) — TON Fans (DEVNET)
+// assets/js/mint.js (v22) — TON Fans (DEVNET)
 // Fixes:
-// - RPC 403/CORS: hard devnet RPC list + failover
-// - More robust supply parsing (avoid false "Sold out" due to NaN/0 parsing)
-// - Group/guard resolution + price
-// - Exposes window.TONFANS.mint API for ui.js
-// - Added mint counter pre-check to prevent botTax when limit reached
-// - Fixed counter display issues and button blocking
-// - Supply always updates even when mintedRemaining = null
-// - Progress bar for "X/Y minted"
-// - No botTax when limit reached (early return)
-// - View on Solscan + Copy tx buttons
+// - Supply всегда обновляется (даже при mintedRemaining = null)
+// - Безопасный запуск при первом заходе
+// - Улучшенное кэширование tier
+// - Массив последних транзакций (топовая фича)
 
 const DEVNET_RPCS = [
   "https://api.devnet.solana.com",
-  // Fallback (some providers can rate-limit / return non-standard payloads)
   "https://rpc.ankr.com/solana_devnet",
 ];
 
 const CLUSTER = "devnet";
-const MINT_LIMIT_ID = 1;          // must match your Candy Guard mintLimit.id
-const MAX_QTY = 3;                // project rule: max 3 per wallet
+const MINT_LIMIT_ID = 1;
+const MAX_QTY = 3;
 const CU_LIMIT = 800_000;
 
-console.log("[TONFANS] mint.js v20 loaded");
+console.log("[TONFANS] mint.js v22 loaded");
 
-// Devnet CM addresses (your approved list)
 const CM_BY_TIER = {
   lgen: "Hr9YzscC71vdHifZR4jRvMd8JmmGxbJrS6j7QckEVqKy",
   bgen: "Ewhn2nJV6tbvq59GMahyWmS54jQWL4n3mrsoVM8n8GHH",
@@ -95,8 +87,7 @@ function emitSupplyUpdate(supplyData){
   } catch {}
 }
 
-// Candy Guard mint counter helpers (for mintLimit pre-check)
-// Prevents botTax when wallet already hit 3/3.
+// --- Обновлено: Candy Guard mint counter ---
 let CGSDK = null;
 async function loadCgSdk(){
   if (CGSDK) return CGSDK;
@@ -104,7 +95,6 @@ async function loadCgSdk(){
   const candidates = [
     "https://esm.sh/@metaplex-foundation/mpl-candy-guard@0.7.0?bundle",
     "https://esm.sh/@metaplex-foundation/mpl-candy-guard@0.6.0?bundle",
-    "https://esm.sh/@metaplex-foundation/mpl-candy-guard@0.5.1?bundle",
   ];
 
   let last = null;
@@ -121,7 +111,7 @@ async function loadCgSdk(){
       last = e;
     }
   }
-  throw last || new Error("Failed to load Candy Guard SDK (mint counter).");
+  throw last || new Error("Failed to load Candy Guard SDK.");
 }
 
 function unwrapOption(v){
@@ -156,14 +146,12 @@ async function fetchMintedCountOnChain(){
 
     let counter = null;
     
-    // Try safeFetchMintCounterFromSeeds first
     if (typeof cg.safeFetchMintCounterFromSeeds === "function"){
       try {
         counter = await cg.safeFetchMintCounterFromSeeds(umi, { id, user, candyGuard });
       } catch {}
     }
 
-    // Fallback to findMintCounterPda + fetchMintCounter
     if (!counter && typeof cg.findMintCounterPda === "function" && typeof cg.fetchMintCounter === "function"){
       try {
         const pda = cg.findMintCounterPda(umi, { id, user, candyGuard });
@@ -171,12 +159,7 @@ async function fetchMintedCountOnChain(){
       } catch {}
     }
 
-    // If counter doesn't exist (user hasn't minted yet), return 0
-    if (!counter) {
-      return 0;
-    }
-
-    return extractCounterCount(counter);
+    return counter ? extractCounterCount(counter) : 0;
   } catch (error) {
     console.error("[TONFANS] Error fetching mint counter:", error);
     return null;
@@ -186,19 +169,16 @@ async function fetchMintedCountOnChain(){
 async function updateWalletMintCounter(){
   const cnt = await fetchMintedCountOnChain();
   
-  // Handle null response (error or not connected)
   if (cnt === null) {
     state.mintedCount = null;
     state.mintedRemaining = null;
     return null;
   }
   
-  // cnt should be a number (0, 1, 2, 3, or more)
   const capped = Math.min(MAX_QTY, cnt);
   state.mintedCount = capped;
   state.mintedRemaining = Math.max(0, MAX_QTY - capped);
   
-  // If no remaining mints, reset quantity to 1
   if (state.mintedRemaining === 0) {
     emitQty(1);
   }
@@ -401,22 +381,15 @@ function extractSolPaymentLamports(guards){
   const sp = guards?.solPayment;
   if (!sp) return null;
 
-  // Handle Option-like wrappers used by some Umi builds
   const kind = sp.__kind ?? sp.__option ?? null;
   if (kind && String(kind).toLowerCase().includes("none")) return null;
 
   const inner = sp.value ?? (Array.isArray(sp.fields) ? sp.fields[0] : null) ?? sp;
 
-  // Common shapes:
-  // - { amount: SolAmount } where SolAmount has basisPoints (lamports)
-  // - { lamports: bigint }
-  // - SolAmount itself
   const candidate = inner?.amount ?? inner?.lamports ?? inner?.basisPoints ?? inner;
   const bi = toBigIntMaybe(candidate);
 
-  // If we couldn't parse a number, treat as missing guard
   if (bi == null) return null;
-
   return bi;
 }
 
@@ -429,22 +402,16 @@ function extractSolPaymentDestination(guards){
 
   const inner = sp.value ?? (Array.isArray(sp.fields) ? sp.fields[0] : null) ?? sp;
 
-  // Common shapes:
-  // - { destination: PublicKey }
-  // - { destinationAddress: PublicKey }
-  // - { destination: { publicKey: ... } } (rare)
   const d = inner?.destination ?? inner?.destinationAddress ?? inner?.destination?.publicKey ?? null;
 
-  // Normalize to base58 string if possible
   if (!d) return null;
   if (typeof d === "string") return d;
   if (typeof d === "object"){
     if (typeof d.toString === "function") return String(d);
-    if (d.bytes) return String(d); // Umi PublicKey toString works
+    if (d.bytes) return String(d);
   }
   return null;
 }
-
 
 // -------- state
 const state = {
@@ -462,7 +429,7 @@ const state = {
   wallet: null,
   walletShort: null,
 
-  // supply (ALWAYS updates)
+  // supply (ВСЕГДА обновляется)
   itemsAvailable: null,
   itemsRedeemed: null,
   itemsRemaining: null,
@@ -476,13 +443,12 @@ const state = {
   ready: false,
   mintLimit: MAX_QTY,
 
-  // per-wallet mint counter (Candy Guard mintLimit)
+  // per-wallet mint counter
   mintedCount: null,
   mintedRemaining: null,
 
-  // last transaction info (for View on Solscan + Copy)
-  lastTxSignature: null,
-  lastTxExplorerUrl: null,
+  // ТОПОВАЯ ФИЧА: массив последних транзакций
+  recentTxSignatures: [], // Массив объектов {signature, explorerUrl, timestamp}
 
   // ui
   busy: false,
@@ -493,9 +459,7 @@ const state = {
 
 function getState(){ return JSON.parse(JSON.stringify(state)); }
 
-// Resolve collection update authority safely (prevents CandyGuard PublicKeyMismatch)
 async function resolveCollectionUpdateAuthority(cm, collectionMint){
-  // Try direct fields first
   const direct = cm?.collectionUpdateAuthority
     ?? cm?.collection?.updateAuthority
     ?? cm?.collection?.updateAuthorityAddress
@@ -504,7 +468,6 @@ async function resolveCollectionUpdateAuthority(cm, collectionMint){
 
   if (direct) return direct;
 
-  // Fallback: read updateAuthority from collection metadata (Token Metadata)
   try {
     await loadSdk();
     if (!umi) await rebuildUmi();
@@ -521,7 +484,7 @@ async function resolveCollectionUpdateAuthority(cm, collectionMint){
   }
 }
 
- // -------- core
+// -------- core
 async function setTier(tierRaw){
   const key = normalizeTier(tierRaw);
   state.tierRaw = tierRaw || null;
@@ -539,14 +502,17 @@ async function setTier(tierRaw){
   state.ready = false;
   state.mintedCount = null;
   state.mintedRemaining = null;
-  state.lastTxSignature = null;
-  state.lastTxExplorerUrl = null;
+  // НЕ сбрасываем recentTxSignatures при смене тира
 
-  try { localStorage.setItem("tonfans:tier", tierRaw || ""); } catch {}
+  // ВАЖНО: Сохраняем tier в localStorage ДАЖЕ при первом выборе
+  try { 
+    localStorage.setItem("tonfans:tier", tierRaw || ""); 
+  } catch {}
+
   emit();
 
   if (!state.cmId) {
-    setHint("Tier выбран, но CM ID не найден (проверь mapping).", "error");
+    setHint("Tier выбран, но CM ID не найден.", "error");
     return;
   }
 
@@ -594,7 +560,7 @@ async function refresh(){
 
     if (!cg) {
       state.ready = false;
-      setHint("Candy Machine NOT wrapped by Candy Guard (run `sugar guard add` for this tier).", "error");
+      setHint("Candy Machine NOT wrapped by Candy Guard.", "error");
       emit();
       return;
     }
@@ -612,29 +578,27 @@ async function refresh(){
     state.isFree = (lamports == null);
     state.priceSol = state.isFree ? 0 : lamportsToSol(lamports);
 
-    // readiness:
-    // - If remaining is known and ==0 => sold out.
-    // - If remaining unknown (null) => do NOT block (avoid false sold-out).
+    // readiness
     if (state.itemsRemaining === 0) {
       state.ready = false;
       setHint(`Sold out (${state.itemsRedeemed ?? "?"}/${state.itemsAvailable ?? "?"}).`, "error");
     } else {
       state.ready = true;
-      const p = state.isFree ? "price: FREE (network rent applies)" : `price: ${state.priceSol} SOL`;
+      const p = state.isFree ? "price: FREE" : `price: ${state.priceSol} SOL`;
       const d = state.solDestination ? ` • dest: ${shortPk(String(state.solDestination))}` : "";
       const sup = (state.itemsRemaining == null) ? "" : ` • left: ${state.itemsRemaining}`;
       const grp = state.guardGroup ? `group: ${state.guardGroup}` : "base guards";
       setHint(`Ready (${grp}${d}, ${p}${sup}).`, "ok");
     }
 
-    // ALWAYS emit supply update (even when mintedRemaining = null)
+    // ВАЖНО: Всегда эмитим обновление supply (даже если mintedRemaining = null)
     emitSupplyUpdate({
       itemsAvailable: state.itemsAvailable,
       itemsRedeemed: state.itemsRedeemed,
       itemsRemaining: state.itemsRemaining
     });
 
-    // Update mint counter for current wallet
+    // Update mint counter
     await updateWalletMintCounter();
     emit();
   } catch (e) {
@@ -647,6 +611,34 @@ async function refresh(){
   }
 }
 
+// ТОПОВАЯ ФИЧА: добавляем транзакцию в историю
+function addRecentTransaction(signature){
+  if (!signature) return;
+  
+  const explorerUrl = `https://solscan.io/tx/${signature}?cluster=devnet`;
+  const txRecord = {
+    signature,
+    explorerUrl,
+    timestamp: Date.now(),
+    shortSig: signature.slice(0, 8) + "…" + signature.slice(-8)
+  };
+  
+  // Добавляем в начало массива (новые сверху)
+  state.recentTxSignatures.unshift(txRecord);
+  
+  // Ограничиваем до 10 последних
+  if (state.recentTxSignatures.length > 10) {
+    state.recentTxSignatures = state.recentTxSignatures.slice(0, 10);
+  }
+  
+  // Сохраняем в localStorage для persistence
+  try {
+    localStorage.setItem("tonfans:recentTxs", JSON.stringify(state.recentTxSignatures));
+  } catch {}
+  
+  emit();
+}
+
 async function mintNow(qty=1){
   if (!state.cmId) throw new Error("Select a tier first.");
   if (!state.walletConnected) throw new Error("Connect wallet first.");
@@ -654,20 +646,20 @@ async function mintNow(qty=1){
 
   const q = Math.max(1, Math.min(MAX_QTY, Number(qty || 1)));
 
-  // Pre-check mintLimit to avoid botTax when user already minted 3/3
+  // Pre-check mintLimit
   await updateWalletMintCounter();
 
-  // CRITICAL: If mintedRemaining <= 0, return EARLY without sending any transaction
+  // PRO-LEVEL UX: кнопка активна, но при remaining=0 только toast, без транзы
   if (state.mintedRemaining !== null && state.mintedRemaining <= 0) {
     const msg = "Mint limit reached (3 per wallet)";
     setHint(msg, "error");
-    emitToast(msg, "error");
+    emitToast(msg, "info"); // info, а не error, чтобы не пугать
     emitQty(1);
     emit();
-    return; // NO transaction sent = NO botTax
+    return; // НИКАКОЙ транзакции, НИКАКОГО botTax
   }
 
-  // Check if we have valid counter data and adjust quantity if needed
+  // Check if we need to adjust quantity
   if (state.mintedRemaining !== null) {
     const remaining = Number(state.mintedRemaining);
 
@@ -676,27 +668,21 @@ async function mintNow(qty=1){
       setHint(msg, "info");
       emitToast(msg, "info");
       
-      // Try minting with adjusted quantity
       try {
         await _executeMint(remaining);
       } catch (err) {
-        // Error will be handled in _executeMint
+        // Error handled in _executeMint
       }
       return;
     }
   }
 
-  // Proceed with requested quantity
   await _executeMint(q);
 }
 
 async function _executeMint(qty){
   setBusy(true, "Minting…");
   setHint(`Minting x${qty}…`, "info");
-
-  // Clear previous transaction info
-  state.lastTxSignature = null;
-  state.lastTxExplorerUrl = null;
 
   try {
     await loadSdk();
@@ -712,7 +698,6 @@ async function _executeMint(qty){
     const raw = String(state.tierRaw || "");
     const labels = [raw, raw.replaceAll("_","-"), state.tierKey, "default"].filter(Boolean);
 
-    // choose group if exists
     let group = null;
     const groups = cg.groups || [];
     group = labels.find(l => groups.some(g => g.label === l)) || null;
@@ -748,15 +733,14 @@ async function _executeMint(qty){
     if (!collectionMint || !collectionUpdateAuthority) {
       throw new Error(
         "CM missing collectionMint/collectionUpdateAuthority. " +
-        "This Candy Machine was deployed without a collection (or older layout). " +
-        "Fix: redeploy with a collection or set/verify collection via sugar, then retry."
+        "Fix: redeploy with a collection or set/verify collection via sugar."
       );
     }
 
     const cua = (typeof collectionUpdateAuthority === 'string') ? SDK.publicKey(String(collectionUpdateAuthority)) : collectionUpdateAuthority;
     const cMint = (typeof collectionMint === 'string') ? SDK.publicKey(String(collectionMint)) : collectionMint;
 
-    let lastSignature = null;
+    const signatures = [];
 
     for (let i=0;i<qty;i++){
       const nftMint = sdk.generateSigner(umi);
@@ -775,37 +759,40 @@ async function _executeMint(qty){
         .add(sdk.setComputeUnitLimit(umi, { units: CU_LIMIT }))
         .add(ix);
 
-      // send with retry if blockhash expires while user approves in wallet
+      let signature = null;
       try {
-        lastSignature = await builder.sendAndConfirm(umi);
+        signature = await builder.sendAndConfirm(umi);
       } catch (e) {
         if (isBlockhashNotFound(e) || isRecentBlockhashFailed(e)) {
-          setHint("RPC/blockhash hiccup — retrying with fresh blockhash…", "info");
+          setHint("RPC/blockhash hiccup — retrying…", "info");
           try { await rotateRpc(); } catch {}
-          // rebuild and try once more
           const builder2 = sdk.transactionBuilder()
             .add(sdk.setComputeUnitLimit(umi, { units: CU_LIMIT }))
             .add(ix);
-          lastSignature = await builder2.sendAndConfirm(umi);
+          signature = await builder2.sendAndConfirm(umi);
         } else {
           throw e;
         }
       }
+      
+      if (signature) {
+        signatures.push(signature);
+        addRecentTransaction(signature); // ТОПОВАЯ ФИЧА: сохраняем каждую транзакцию
+      }
+      
       await sleep(150);
     }
 
-    // Save last transaction signature for View on Solscan
-    if (lastSignature) {
-      state.lastTxSignature = lastSignature;
-      state.lastTxExplorerUrl = `https://solscan.io/tx/${lastSignature}?cluster=devnet`;
-    }
-
-    // After successful mint, reset quantity to 1
+    // After successful mint
     emitQty(1);
     setHint("Mint complete.", "ok");
-    emitToast("Mint successful! View on Solscan →", "ok");
     
-    // Refresh to update counters and supply
+    if (signatures.length === 1) {
+      emitToast(`Mint successful! Tx: ${signatures[0].slice(0, 8)}…`, "ok");
+    } else {
+      emitToast(`Minted ${signatures.length} NFTs successfully!`, "ok");
+    }
+    
     await refresh();
   } catch (e) {
     setHint(e?.message || String(e), "error");
@@ -816,18 +803,21 @@ async function _executeMint(qty){
   }
 }
 
-// Copy transaction signature to clipboard
-function copyTxSignature(){
-  if (!state.lastTxSignature) return;
+// Copy transaction signature
+function copyTxSignature(signature){
+  if (!signature && state.recentTxSignatures.length > 0) {
+    signature = state.recentTxSignatures[0].signature;
+  }
   
-  navigator.clipboard.writeText(state.lastTxSignature)
+  if (!signature) return;
+  
+  navigator.clipboard.writeText(signature)
     .then(() => {
       emitToast("Transaction signature copied!", "ok");
     })
     .catch(() => {
-      // Fallback for older browsers
       const textArea = document.createElement('textarea');
-      textArea.value = state.lastTxSignature;
+      textArea.value = signature;
       document.body.appendChild(textArea);
       textArea.select();
       try {
@@ -848,10 +838,19 @@ window.TONFANS.mint = {
   refresh, 
   mintNow, 
   getState,
-  copyTxSignature
+  copyTxSignature,
+  addRecentTransaction
 };
 
 (function init(){
+  // Загружаем историю транзакций из localStorage
+  try {
+    const savedTxs = localStorage.getItem("tonfans:recentTxs");
+    if (savedTxs) {
+      state.recentTxSignatures = JSON.parse(savedTxs);
+    }
+  } catch {}
+  
   const p = getProvider();
   if (p?.on) {
     try {
@@ -891,13 +890,3 @@ window.TONFANS.mint = {
   if (saved) setTier(saved).catch(()=>{});
   else emit();
 })();
-
-// Инициализация UI после загрузки
-document.addEventListener('DOMContentLoaded', () => {
-  // Trigger initial render
-  if (window.__TONFANS_STATE__) {
-    window.dispatchEvent(new CustomEvent("tonfans:state", { 
-      detail: window.__TONFANS_STATE__ 
-    }));
-  }
-});
