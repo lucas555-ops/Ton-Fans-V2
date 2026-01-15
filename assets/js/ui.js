@@ -1,292 +1,417 @@
-// assets/js/ui.js
-// TON FANS — UI glue (no conflict, defensive, works with different HTML layouts).
-// Requires mint.js (window.TonFansMint).
-//
-// Load order:
-//   <script type="module" src="assets/js/mint.js?v=5"></script>
-//   <script src="assets/js/ui.js?v=5"></script>
+// assets/js/ui.js (v18) — TON Fans UI for your index.html
+// Adds "Minted: X/3" + "Remaining: Y/3", toast popup, qty reset after success,
+// and dynamic qty max based on remaining (prevents user from selecting > remaining).
+(() => {
+  console.log("[TONFANS] ui.js v18 loaded");
 
-(function () {
-  "use strict";
+  const $ = (id) => document.getElementById(id);
 
-  // ---------- Helpers ----------
-  function $(sel, root) { return (root || document).querySelector(sel); }
-  function $all(sel, root) { return Array.from((root || document).querySelectorAll(sel)); }
-
-  function firstEl(selectors) {
-    for (const s of selectors) {
-      const el = $(s);
-      if (el) return el;
-    }
-    return null;
-  }
-
-  function setText(el, text) {
-    if (!el) return;
-    el.textContent = (text == null ? "" : String(text));
-  }
-
-  function setHtml(el, html) {
-    if (!el) return;
-    el.innerHTML = html;
-  }
-
-  function setDisabled(el, disabled) {
-    if (!el) return;
-    if ("disabled" in el) el.disabled = !!disabled;
-    el.setAttribute("aria-disabled", disabled ? "true" : "false");
-    el.classList.toggle("is-disabled", !!disabled);
-  }
-
-  function formatSol(v) {
-    if (v == null || !Number.isFinite(Number(v))) return "—";
-    // Show up to 3 decimals, but keep clean.
-    const n = Number(v);
-    if (n === 0) return "0";
-    if (n < 0.001) return n.toFixed(6);
-    if (n < 1) return n.toFixed(3);
-    return n.toFixed(2);
-  }
-
-  function toast(msg, kind) {
-    // Minimal safe toast. If your site already has a toast system, we won't fight it.
-    try {
-      const existing = $("#tonfans-toast");
-      if (existing) existing.remove();
-
-      const div = document.createElement("div");
-      div.id = "tonfans-toast";
-      div.textContent = String(msg || "");
-      div.style.position = "fixed";
-      div.style.left = "50%";
-      div.style.bottom = "24px";
-      div.style.transform = "translateX(-50%)";
-      div.style.zIndex = "99999";
-      div.style.padding = "10px 14px";
-      div.style.borderRadius = "12px";
-      div.style.maxWidth = "92vw";
-      div.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
-      div.style.fontSize = "14px";
-      div.style.lineHeight = "1.25";
-      div.style.backdropFilter = "blur(10px)";
-      div.style.background = kind === "error" ? "rgba(180, 40, 40, .88)" : "rgba(20, 20, 20, .88)";
-      div.style.color = "white";
-      div.style.boxShadow = "0 12px 40px rgba(0,0,0,.35)";
-      document.body.appendChild(div);
-      setTimeout(() => { try { div.remove(); } catch {} }, 2600);
-    } catch {}
-  }
-
-  // ---------- Element bindings (multiple fallbacks) ----------
   const els = {
-    selectedTier: firstEl(["#selectedTier", "[data-selected-tier]", ".selected-tier", "#tierSelectedText"]),
-    ready: firstEl(["#readyText", "[data-ready]", ".ready-text", "#mintReady"]),
-    price: firstEl(["#priceValue", "[data-price]", ".price-value", "#mintPrice"]),
-    total: firstEl(["#totalValue", "[data-total]", ".total-value", "#mintTotal"]),
-    supply: firstEl(["#supplyText", "[data-supply]", ".supply-text", "#mintSupply"]),
-    status: firstEl(["#statusText", "[data-status]", ".status-text", "#mintStatus"]),
-    walletLabel: firstEl(["#walletText", "[data-wallet]", ".wallet-text", "#walletLabel"]),
-    connectBtn: firstEl(["#connectBtn", "#connectWallet", ".connect-wallet", "[data-action='connect']"]),
-    mintBtn: firstEl(["#mintBtn", "#mintNow", ".mint-now", "[data-action='mint']", "[data-mint]"]),
-    qty: firstEl(["#mintQty", "input[name='qty']", "[data-mint-qty]"]),
-    stickyBar: firstEl(["#stickyBar", ".sticky-bar", "[data-sticky-bar]"]),
-    stickyChangeTier: firstEl(["#changeTier", "#changeTierBtn", ".change-tier", "[data-action='change-tier']"]),
+    netPill: $("netPill"),
+    walletPill: $("walletPill"),
+    readyPill: $("readyPill"),
+
+    walletStatus: $("walletStatus"),
+    walletAddr: $("walletAddr"),
+    connectBtn: $("connectBtn"),
+    disconnectBtn: $("disconnectBtn"),
+
+    selectedTierName: $("selectedTierName"),
+    selectedTierMeta: $("selectedTierMeta"),
+    tierReady: $("tierReady"),
+
+    price: $("price"),
+    total: $("total"),
+    qty: $("qty"),
+    qtyMinus: $("qtyMinus"),
+    qtyPlus: $("qtyPlus"),
+
+    mintBtn: $("mintBtn"),
+    mintHint: $("mintHint"),
+    mintHelp: $("mintHelp"),
+
+    stickyMintBar: $("stickyMintBar"),
+    stickySelected: $("stickySelected"),
+    stickyActionBtn: $("stickyActionBtn"),
+    stickyChangeBtn: $("stickyChangeBtn"),
   };
 
-  const tierButtons = () => $all("[data-tier]");
-  const tierSection = () => firstEl(["#tiers", "#tier", "#tierSection", "[data-tiers]", ".tiers", ".tier-section"]) || document.body;
+  const MAX_QTY = 3;
+  let currentMaxQty = MAX_QTY;
 
-  function highlightTier(tier) {
-    for (const b of tierButtons()) {
-      const t = b.getAttribute("data-tier");
-      const on = (t === tier);
-      b.classList.toggle("active", on);
-      b.classList.toggle("is-active", on);
-      b.classList.toggle("selected", on);
-      b.classList.toggle("is-selected", on);
-      b.setAttribute("aria-selected", on ? "true" : "false");
-      if (on) b.setAttribute("data-selected", "true"); else b.removeAttribute("data-selected");
+  const tierCards = () => Array.from(document.querySelectorAll(".tier-card[data-tier]"));
+
+  function setHidden(el, hidden){ if (el) el.classList.toggle("hidden", !!hidden); }
+  function setText(el, v){ if (el) el.textContent = v == null ? "" : String(v); }
+
+  function fmtSol(n){
+    if (n == null || !Number.isFinite(Number(n))) return "—";
+    const x = Number(n);
+
+    const milli = Math.round(x * 1000);
+    const rounded3 = milli / 1000;
+
+    if (milli % 10 === 0) return rounded3.toFixed(2);
+    return rounded3.toFixed(3);
+  }
+
+  // --- Toast (popup) ---
+  let toastTimer = null;
+  function ensureToastEl(){
+    let el = document.getElementById("tonfansToast");
+    if (el) return el;
+
+    el = document.createElement("div");
+    el.id = "tonfansToast";
+    el.style.position = "fixed";
+    el.style.left = "50%";
+    el.style.bottom = "22px";
+    el.style.transform = "translateX(-50%)";
+    el.style.zIndex = "99999";
+    el.style.maxWidth = "92vw";
+    el.style.padding = "12px 14px";
+    el.style.borderRadius = "14px";
+    el.style.border = "1px solid rgba(255,255,255,0.12)";
+    el.style.background = "rgba(10,10,10,0.86)";
+    el.style.backdropFilter = "blur(10px)";
+    el.style.color = "rgba(255,255,255,0.92)";
+    el.style.fontSize = "13px";
+    el.style.fontWeight = "600";
+    el.style.boxShadow = "0 12px 40px rgba(0,0,0,0.45)";
+    el.style.display = "none";
+    el.style.pointerEvents = "none";
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function toast(message, kind="info"){
+    const el = ensureToastEl();
+    el.textContent = String(message || "");
+    el.style.display = "block";
+    el.style.borderColor =
+      (kind === "error") ? "rgba(255,120,120,0.35)" :
+      (kind === "ok") ? "rgba(120,255,180,0.28)" :
+      "rgba(255,255,255,0.12)";
+
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.style.display = "none"; }, 2600);
+  }
+
+  function readQtyRaw(){
+    if (!els.qty) return "1";
+    if ("value" in els.qty) return String(els.qty.value || "1");
+    return String(els.qty.textContent || "1").trim();
+  }
+
+  function getQty(){
+    const v = Number(readQtyRaw() || 1);
+    if (!Number.isFinite(v) || v <= 0) return 1;
+    return Math.floor(v);
+  }
+
+  function setQty(v){
+    if (!els.qty) return;
+    let q = Math.floor(Number(v || 1));
+    if (!Number.isFinite(q) || q < 1) q = 1;
+
+    const max = Number.isFinite(Number(currentMaxQty)) ? Number(currentMaxQty) : MAX_QTY;
+    if (q > max) q = max;
+
+    if ("value" in els.qty) {
+      els.qty.value = String(q);
+      els.qty.setAttribute("min","1");
+      els.qty.setAttribute("max", String(max));
+    } else {
+      els.qty.textContent = String(q);
     }
   }
 
-  function computeQty() {
-    const v = els.qty ? Number(els.qty.value || 1) : 1;
-    if (!Number.isFinite(v) || v <= 0) return 1;
-    return Math.min(10, Math.floor(v));
+  function highlightTier(tierRaw){
+    for (const c of tierCards()){
+      const t = c.getAttribute("data-tier");
+      const on = t === tierRaw;
+      c.classList.toggle("tier-selected", on);
+      c.setAttribute("aria-selected", on ? "true" : "false");
+    }
   }
 
-  function updateFromState(s) {
-    if (!s) return;
+  function canMint(s){
+    return !!s.walletConnected && !!s.ready && !s.busy;
+  }
+
+  // extra UI lines
+  let qtyRemainingEl = null;
+  let mintedLineEl = null;
+
+  function ensureExtraEls(){
+    if (!qtyRemainingEl && els.qty && els.qty.parentElement) {
+      qtyRemainingEl = document.getElementById("qtyRemaining");
+      if (!qtyRemainingEl) {
+        qtyRemainingEl = document.createElement("div");
+        qtyRemainingEl.id = "qtyRemaining";
+        qtyRemainingEl.className = "text-xs muted2 ml-2";
+        qtyRemainingEl.style.whiteSpace = "nowrap";
+        els.qty.parentElement.appendChild(qtyRemainingEl);
+      }
+    }
+
+    if (!mintedLineEl && els.mintBtn) {
+      mintedLineEl = document.getElementById("mintedLine");
+      if (!mintedLineEl) {
+        mintedLineEl = document.createElement("div");
+        mintedLineEl.id = "mintedLine";
+        mintedLineEl.className = "mt-2 text-xs muted2";
+        mintedLineEl.textContent = "Minted: —/3";
+        els.mintBtn.insertAdjacentElement("afterend", mintedLineEl);
+      }
+    }
+  }
+
+  function render(s){
+    window.__TONFANS_STATE__ = s;
+
+    ensureExtraEls();
+
+    // minted / remaining from mint.js
+    const minted = Number.isFinite(Number(s.mintedCount)) ? Number(s.mintedCount) : null;
+    const remaining = Number.isFinite(Number(s.mintedRemaining)) ? Number(s.mintedRemaining)
+      : (minted == null ? null : Math.max(0, MAX_QTY - minted));
+
+    // dynamic max qty based on remaining (but always allow showing at least 1)
+    if (remaining == null) currentMaxQty = MAX_QTY;
+    else currentMaxQty = Math.max(1, Math.min(MAX_QTY, remaining));
+
+    if (mintedLineEl) mintedLineEl.textContent = `Minted: ${(minted == null ? "—" : minted)}/3`;
+    if (qtyRemainingEl) qtyRemainingEl.textContent = `Remaining: ${(remaining == null ? "—" : remaining)}/3`;
+
+    // Top pills
+    if (els.netPill) setText(els.netPill, s.cluster === "devnet" ? "Devnet" : (s.cluster || "—"));
+    if (els.walletPill) setText(els.walletPill, s.walletConnected ? (s.walletShort || "Connected") : "Not connected");
+    if (els.readyPill) setText(els.readyPill, s.ready ? "Yes" : "No");
+
+    // Wallet card
+    setText(els.walletStatus, s.walletConnected ? "Connected" : "Not connected");
+    setText(els.walletAddr, s.walletConnected ? (s.walletShort || "") : "—");
+    setHidden(els.connectBtn, !!s.walletConnected);
+    setHidden(els.disconnectBtn, !s.walletConnected);
 
     // Selected tier
-    setText(els.selectedTier, s.selectedTier || "—");
-    highlightTier(s.selectedTier);
+    setText(els.selectedTierName, s.tierLabel || "—");
+    setText(
+      els.selectedTierMeta,
+      s.guardPk
+        ? `guard: ${String(s.guardPk).slice(0,4)}…${String(s.guardPk).slice(-4)}${s.guardGroup ? ` (${s.guardGroup})` : ""}`
+        : "guard: —"
+    );
+    setHidden(els.tierReady, !s.ready);
+    highlightTier(s.tierRaw);
 
-    // Wallet label
-    if (els.walletLabel) {
-      setText(els.walletLabel, s.wallet?.connected ? s.wallet.short : "Not connected");
+    // Sticky bar
+    if (els.stickyMintBar) {
+      const show = !!s.tierRaw;
+      setHidden(els.stickyMintBar, !show);
+      if (show) setText(els.stickySelected, s.tierLabel || "—");
     }
-    if (els.connectBtn) {
-      els.connectBtn.textContent = s.wallet?.connected ? "Connected" : "Connect wallet";
-      els.connectBtn.classList.toggle("is-connected", !!s.wallet?.connected);
+
+    // Quantity clamp + disable buttons
+    setQty(getQty());
+    if (els.qtyMinus) {
+      const dis = getQty() <= 1;
+      els.qtyMinus.disabled = dis;
+      els.qtyMinus.style.opacity = dis ? ".55" : "1";
+      els.qtyMinus.style.cursor = dis ? "not-allowed" : "pointer";
     }
-
-    // Ready
-    const readyText = s.readiness?.ready ? "Ready Yes" : "Ready No";
-    setText(els.ready, readyText);
-
-    // Supply
-    if (els.supply) {
-      const rem = s.supply?.remaining;
-      const av = s.supply?.available;
-      const rd = s.supply?.redeemed;
-      if (rem == null || av == null || rd == null) setText(els.supply, "");
-      else setText(els.supply, `${rem} left • ${rd}/${av} minted`);
+    if (els.qtyPlus) {
+      const dis = getQty() >= currentMaxQty;
+      els.qtyPlus.disabled = dis;
+      els.qtyPlus.style.opacity = dis ? ".55" : "1";
+      els.qtyPlus.style.cursor = dis ? "not-allowed" : "pointer";
     }
 
     // Price + total
-    const qty = computeQty();
-    const priceSol = s.pricing?.priceSol;
-    setText(els.price, `${formatSol(priceSol)} SOL`);
-    if (els.total) {
-      const total = (priceSol == null || !Number.isFinite(Number(priceSol))) ? null : (Number(priceSol) * qty);
-      setText(els.total, `${formatSol(total)} SOL`);
+    setText(els.price, fmtSol(s.priceSol));
+    const total = (s.priceSol == null) ? null : (Number(s.priceSol) * getQty());
+    setText(els.total, fmtSol(total));
+
+    // Mint button
+    if (els.mintBtn){
+      const ok = canMint(s);
+      els.mintBtn.disabled = !ok;
+      els.mintBtn.style.opacity = ok ? "1" : ".55";
+      els.mintBtn.textContent = s.busy ? (s.busyLabel || "Working…") : "Mint now";
+      els.mintBtn.style.cursor = ok ? "pointer" : "not-allowed";
     }
 
-    // Status
-    if (els.status) {
-      const msg = s.ui?.message || "";
-      setText(els.status, msg);
+    // Sticky action
+    if (els.stickyActionBtn){
+      if (!s.walletConnected) {
+        els.stickyActionBtn.textContent = "Connect";
+        els.stickyActionBtn.disabled = false;
+        els.stickyActionBtn.style.cursor = "pointer";
+      } else {
+        els.stickyActionBtn.textContent = "Mint";
+        const okSticky = canMint(s);
+        els.stickyActionBtn.disabled = !okSticky;
+        els.stickyActionBtn.style.cursor = okSticky ? "pointer" : "not-allowed";
+      }
     }
 
-    // Mint button enable/disable
-    const canMint = !!s.wallet?.connected && !!s.readiness?.ready && s.ui?.status !== "minting";
-    setDisabled(els.mintBtn, !canMint);
+    // Hint
+    if (els.mintHint){
+      const prefix = s.hintKind === "error" ? "Error: " : "";
+      setText(els.mintHint, `${prefix}${s.hint || ""}`.trim());
+    }
 
-    if (els.mintBtn) {
-      const base = els.mintBtn.getAttribute("data-base-text") || els.mintBtn.textContent || "Mint now";
-      if (!els.mintBtn.getAttribute("data-base-text")) els.mintBtn.setAttribute("data-base-text", base);
-
-      if (s.ui?.status === "minting") els.mintBtn.textContent = "Minting…";
-      else els.mintBtn.textContent = base;
+    // Help link label
+    if (els.mintHelp){
+      els.mintHelp.textContent = s.tierRaw ? "Change tier →" : "Set CM address →";
+      els.mintHelp.href = s.tierRaw ? "#tiers" : "#transparency";
     }
   }
 
-  // ---------- Bind interactions ----------
-  function bindTierButtons() {
-    for (const b of tierButtons()) {
-      b.addEventListener("click", async (e) => {
-        const tier = b.getAttribute("data-tier");
-        if (!tier) return;
-        e.preventDefault();
-        e.stopImmediatePropagation?.();
+  function mintApi(){ return window.TONFANS?.mint; }
 
-        if (window.TonFansMint?.selectTier) {
-          await window.TonFansMint.selectTier(tier);
-        }
+  async function onTier(card){
+    const tierRaw = card.getAttribute("data-tier");
+    if (!tierRaw) return;
+    highlightTier(tierRaw);
+    if (els.stickyMintBar) setHidden(els.stickyMintBar, false);
+    await mintApi()?.setTier?.(tierRaw);
+  }
+
+  function bind(){
+    // tier cards
+    for (const c of tierCards()){
+      c.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+        onTier(c).catch(()=>{});
       }, { capture: true });
     }
-  }
 
-  function bindQty() {
-    if (!els.qty) return;
-    els.qty.addEventListener("input", () => {
-      const s = window.TonFansMint?.getState?.();
-      if (s) updateFromState(s);
+    // qty buttons
+    if (els.qtyMinus) els.qtyMinus.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      if (els.qtyMinus.disabled) return;
+      setQty(getQty() - 1);
+      render(window.__TONFANS_STATE__ || {});
+    }, { capture: true });
+
+    if (els.qtyPlus) els.qtyPlus.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      if (els.qtyPlus.disabled) {
+        const s = window.__TONFANS_STATE__ || {};
+        const rem = Number.isFinite(Number(s.mintedRemaining)) ? Number(s.mintedRemaining) : null;
+        if (rem === 0) toast("Mint limit reached (3 per wallet)", "error");
+        else if (rem != null) toast(`Only ${rem}/3 remaining.`, "info");
+        return;
+      }
+      setQty(getQty() + 1);
+      render(window.__TONFANS_STATE__ || {});
+    }, { capture: true });
+
+    // input support
+    if (els.qty && ("value" in els.qty)) els.qty.addEventListener("input", (e) => {
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      setQty(getQty());
+      render(window.__TONFANS_STATE__ || {});
+    }, { capture: true });
+
+    // connect/disconnect
+    if (els.connectBtn) els.connectBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      mintApi()?.toggleConnect?.().catch(()=>{});
     });
-  }
-
-  function bindConnect() {
-    if (!els.connectBtn) return;
-    els.connectBtn.addEventListener("click", async (e) => {
+    if (els.disconnectBtn) els.disconnectBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      e.stopImmediatePropagation?.();
+      mintApi()?.toggleConnect?.().catch(()=>{});
+    });
+
+    // mint main (await + reset qty=1 after success)
+    if (els.mintBtn) els.mintBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
       try {
-        await window.TonFansMint.connectWallet();
-        await window.TonFansMint.refresh();
+        await mintApi()?.mintNow?.(getQty());
+        // setQty(1); // теперь через событие из mint.js
       } catch (err) {
-        toast(err?.message || String(err), "error");
+        toast(err?.message || String(err || "Mint failed"), "error");
       }
     }, { capture: true });
-  }
 
-  function bindMint() {
-    if (!els.mintBtn) return;
-    els.mintBtn.addEventListener("click", async (e) => {
+    // sticky action (await + reset qty=1 after success)
+    if (els.stickyActionBtn) els.stickyActionBtn.addEventListener("click", async (e) => {
       e.preventDefault();
-      e.stopImmediatePropagation?.();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      const s = window.__TONFANS_STATE__ || {};
+      const api = mintApi();
+      if (!api) return;
+
       try {
-        const qty = computeQty();
-        await window.TonFansMint.mint(qty);
+        if (!s.walletConnected) {
+          await api.toggleConnect?.();
+          return;
+        }
+        await api.mintNow?.(getQty());
+        // setQty(1); // теперь через событие из mint.js
       } catch (err) {
-        toast(err?.message || String(err), "error");
+        toast(err?.message || String(err || "Mint failed"), "error");
       }
     }, { capture: true });
+
+    // sticky change tier
+    if (els.stickyChangeBtn) els.stickyChangeBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      location.hash = "#tiers";
+      try { document.getElementById("tiers")?.scrollIntoView({ behavior: "smooth" }); } catch {}
+    });
+
+    // toast / qty events from mint.js
+    window.addEventListener("tonfans:toast", (e) => {
+      try { toast(e?.detail?.message, e?.detail?.kind || "info"); } catch {}
+    });
+
+    window.addEventListener("tonfans:qty", (e) => {
+      try {
+        const q = Number(e?.detail?.qty);
+        if (Number.isFinite(q)) {
+          setQty(q);
+          render(window.__TONFANS_STATE__ || {});
+        }
+      } catch {}
+    });
+
+    window.addEventListener("tonfans:state", (e) => render(e.detail));
   }
 
-  function bindStickyBar() {
-    if (!els.stickyBar) return;
-
-    // show/hide on scroll
-    const threshold = 260;
-    const update = () => {
-      const on = window.scrollY > threshold;
-      els.stickyBar.classList.toggle("is-visible", on);
-      els.stickyBar.style.display = on ? "" : "none";
+  function boot(){
+    bind();
+    const init = {
+      cluster: "devnet",
+      walletConnected: false,
+      walletShort: null,
+      tierRaw: null,
+      tierLabel: "—",
+      ready: false,
+      priceSol: null,
+      busy: false,
+      hint: "",
+      hintKind: "info",
+      mintedCount: null,
+      mintedRemaining: null,
     };
-    window.addEventListener("scroll", update, { passive: true });
-    update();
-
-    if (els.stickyChangeTier) {
-      els.stickyChangeTier.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopImmediatePropagation?.();
-        try {
-          tierSection().scrollIntoView({ behavior: "smooth", block: "start" });
-        } catch {
-          window.scrollTo(0, 0);
-        }
-      }, { capture: true });
-    }
+    window.__TONFANS_STATE__ = init;
+    render(init);
   }
 
-  // ---------- Boot ----------
-  function boot() {
-    // If mint.js didn't load yet, wait a bit.
-    if (!window.TonFansMint) {
-      setTimeout(boot, 120);
-      return;
-    }
-
-    // Initial paint
-    updateFromState(window.TonFansMint.getState());
-
-    // Subscribe
-    window.addEventListener("tonfans:state", (e) => {
-      updateFromState(e.detail);
-      // Toast on errors
-      if (e.detail?.ui?.status === "error" && e.detail?.ui?.message) {
-        toast(e.detail.ui.message, "error");
-      }
-    });
-
-    // Bind UI
-    bindTierButtons();
-    bindQty();
-    bindConnect();
-    bindMint();
-    bindStickyBar();
-
-    // Re-bind if DOM changes (some templates rebuild pills)
-    const mo = new MutationObserver(() => {
-      bindTierButtons();
-    });
-    mo.observe(document.body, { childList: true, subtree: true });
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot);
-  } else {
-    boot();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
 })();
