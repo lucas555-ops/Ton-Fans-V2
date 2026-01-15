@@ -41,6 +41,52 @@
 
   const MAX_QTY = 3;
 
+  // --- Small "pro" toast notifications (no deps) ---
+  function ensureToastCss() {
+    if (document.getElementById('tonfans-toast-css')) return;
+    const style = document.createElement('style');
+    style.id = 'tonfans-toast-css';
+    style.textContent = `
+      .tonfans-toast-wrap{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99999;display:flex;flex-direction:column;gap:10px;pointer-events:none;}
+      .tonfans-toast{min-width:260px;max-width:520px;background:rgba(10,14,18,.92);border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#e9eef5;padding:12px 14px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.45);font:600 13px/1.25 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;letter-spacing:.1px;}
+      .tonfans-toast small{display:block;opacity:.78;font-weight:500;margin-top:6px;}
+      .tonfans-toast--error{border-color:rgba(255,71,87,.35)}
+      .tonfans-toast--warn{border-color:rgba(255,193,7,.28)}
+      .tonfans-toast--ok{border-color:rgba(46,204,113,.28)}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function toast(message, type = 'warn', details = '') {
+    try {
+      ensureToastCss();
+      let wrap = document.querySelector('.tonfans-toast-wrap');
+      if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.className = 'tonfans-toast-wrap';
+        document.body.appendChild(wrap);
+      }
+      const el = document.createElement('div');
+      el.className = `tonfans-toast tonfans-toast--${type}`;
+      el.innerHTML = `${escapeHtml(message)}${details ? `<small>${escapeHtml(details)}</small>` : ''}`;
+      wrap.appendChild(el);
+      setTimeout(() => el.remove(), 4200);
+    } catch (_) {}
+  }
+
+  // expose for mint.js
+  window.TONFANS_UI = window.TONFANS_UI || {};
+  window.TONFANS_UI.toast = toast;
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   const tierCards = () => Array.from(document.querySelectorAll(".tier-card[data-tier]"));
 
   function setHidden(el, hidden){ if (el) el.classList.toggle("hidden", !!hidden); }
