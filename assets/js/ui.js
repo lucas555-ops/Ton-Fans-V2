@@ -1,14 +1,10 @@
-// assets/js/ui.js (v20) — TON Fans UI for your index.html
+// assets/js/ui.js (v21) — TON Fans UI for your index.html
 // Fixes:
-// - Quantity buttons properly blocked when remaining = 0
-// - Mint button disabled when limit reached
-// - Counter display shows correct values
-// - Toast notifications work correctly
-// - Supply always updates (even when mintedRemaining = null)
-// - Progress bar for "X/Y minted"
-// - View on Solscan + Copy tx buttons after successful mint
+// - Updated ID matching with HTML (shareX instead of shareOnX)
+// - Removed conflicting after mint section logic (simplified)
+// - Fixed supply container creation
 (() => {
-  console.log("[TONFANS] ui.js v20 loaded");
+  console.log("[TONFANS] ui.js v21 loaded");
 
   const $ = (id) => document.getElementById(id);
 
@@ -41,11 +37,9 @@
     stickyActionBtn: $("stickyActionBtn"),
     stickyChangeBtn: $("stickyChangeBtn"),
     
-    // After mint elements
-    afterMintSection: $("afterMintSection"),
-    shareOnX: $("shareOnX"),
-    explorerLink: $("explorerLink"),
-    copyTxBtn: $("copyTxBtn"),
+    // After mint elements (match HTML)
+    shareX: $("shareX"),
+    afterMintMessage: $("afterMintMessage"),
   };
 
   const MAX_QTY = 3;
@@ -189,28 +183,21 @@
     const container = document.querySelector(".supply-container");
     if (!container) return null;
     
-    // Create supply pills if they don't exist
-    if (!supplyMintedPill) {
-      supplyMintedPill = document.getElementById("supplyMintedPill");
-      if (!supplyMintedPill) {
-        supplyMintedPill = document.createElement("div");
-        supplyMintedPill.id = "supplyMintedPill";
-        supplyMintedPill.className = "text-xs muted2 mb-1";
-        supplyMintedPill.textContent = "Supply: —/— minted";
-        container.appendChild(supplyMintedPill);
-      }
-    }
+    // Clear container first
+    container.innerHTML = '';
     
-    if (!supplyRemainPill) {
-      supplyRemainPill = document.getElementById("supplyRemainPill");
-      if (!supplyRemainPill) {
-        supplyRemainPill = document.createElement("div");
-        supplyRemainPill.id = "supplyRemainPill";
-        supplyRemainPill.className = "text-xs muted2 mb-2";
-        supplyRemainPill.textContent = "Supply remaining: —";
-        container.appendChild(supplyRemainPill);
-      }
-    }
+    // Create supply pills
+    supplyMintedPill = document.createElement("div");
+    supplyMintedPill.id = "supplyMintedPill";
+    supplyMintedPill.className = "text-xs muted2 mb-1";
+    supplyMintedPill.textContent = "Supply: —/— minted";
+    container.appendChild(supplyMintedPill);
+    
+    supplyRemainPill = document.createElement("div");
+    supplyRemainPill.id = "supplyRemainPill";
+    supplyRemainPill.className = "text-xs muted2 mb-2";
+    supplyRemainPill.textContent = "Supply remaining: —";
+    container.appendChild(supplyRemainPill);
     
     return container;
   }
@@ -256,6 +243,8 @@
   }
 
   function updateSupplyUI(s){
+    ensureSupplyBar();
+    
     // Always update supply pills, even when mintedRemaining = null
     if (supplyMintedPill && supplyRemainPill && 
         Number.isFinite(s.itemsRedeemed) && Number.isFinite(s.itemsAvailable)) {
@@ -297,28 +286,24 @@
   }
 
   function updateAfterMintUI(s){
-    if (!els.afterMintSection || !els.explorerLink || !els.copyTxBtn) return;
+    if (!els.shareX || !els.afterMintMessage) return;
     
-    const show = !!s.lastTxSignature;
-    setHidden(els.afterMintSection, !show);
+    const showAfterMint = !!s.lastTxSignature;
     
-    if (show && s.lastTxExplorerUrl) {
-      els.explorerLink.href = s.lastTxExplorerUrl;
-      els.explorerLink.textContent = "View on Solscan";
-      els.explorerLink.target = "_blank";
-      
-      // Update copy button
-      els.copyTxBtn.onclick = () => {
-        window.TONFANS?.mint?.copyTxSignature?.();
-      };
-      
+    if (showAfterMint && s.lastTxExplorerUrl) {
       // Update share on X link
-      if (els.shareOnX) {
-        const tierName = s.tierLabel || "TON Fans NFT";
-        const shareText = `Just minted ${tierName} on @ton_fans! ${s.lastTxExplorerUrl}`;
-        els.shareOnX.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
-        els.shareOnX.target = "_blank";
-      }
+      const tierName = s.tierLabel || "TON Fans NFT";
+      const shareText = `Just minted ${tierName} on @ton_fans! ${s.lastTxExplorerUrl}`;
+      els.shareX.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
+      els.shareX.target = "_blank";
+      
+      // Update message
+      els.afterMintMessage.textContent = `Mint successful! View transaction: ${s.lastTxSignature.slice(0,8)}...`;
+      els.afterMintMessage.innerHTML = `Mint successful! <a href="${s.lastTxExplorerUrl}" target="_blank" class="text-blue-400 hover:text-blue-300">View on Solscan</a>`;
+    } else {
+      // Reset to default
+      els.shareX.href = "#";
+      els.afterMintMessage.textContent = "Celebration moment + explorer link will appear here after mint integration.";
     }
   }
 
