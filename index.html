@@ -229,7 +229,7 @@
         </div>
         <div class="card p-5">
           <div class="tier-badge">Connection</div>
-          <p class="mt-2 muted">Radial symmetry reads as “network energy” — instantly recognizable.</p>
+          <p class="mt-2 muted">Radial symmetry reads as "network energy" — instantly recognizable.</p>
         </div>
       </div>
     </div>
@@ -243,7 +243,7 @@
       <h2 class="mt-2 text-2xl md:text-3xl font-extrabold">TON aesthetics × Solana rails.</h2>
 
       <p class="mt-3 muted max-w-3xl">
-        TON Fans is a <span class="text-white font-semibold">TON-inspired</span> coin collection — but it’s minted on
+        TON Fans is a <span class="text-white font-semibold">TON-inspired</span> coin collection — but it's minted on
         <span class="text-white font-semibold">Solana</span> on purpose.
         Solana gives collectors the smoothest mint experience: fast confirmations, low fees, and battle-tested NFT tooling.
       </p>
@@ -264,7 +264,7 @@
         </div>
         <div class="card p-5">
           <div class="tier-badge">NFT infra</div>
-          <p class="mt-2 muted">Wallets, explorers, marketplaces — Solana’s rails are mature.</p>
+          <p class="mt-2 muted">Wallets, explorers, marketplaces — Solana's rails are mature.</p>
         </div>
       </div>
 
@@ -319,7 +319,7 @@
         </div>
         <ul class="mt-5 space-y-2 text-sm muted">
           <li>Bigger presence</li>
-          <li>More “coin” feel</li>
+          <li>More "coin" feel</li>
           <li>Collector favorite</li>
         </ul>
         <div class="mt-5 flex items-center gap-2 text-sm">
@@ -418,7 +418,7 @@
           <h3 class="mt-3 text-lg md:text-xl font-bold">Holder snapshot & perks</h3>
           <ul class="mt-3 space-y-2 muted">
             <li>• On-chain holder snapshot (verifiable)</li>
-            <li>• “Proof-of-Holder” share card (optional)</li>
+            <li>• "Proof-of-Holder" share card (optional)</li>
             <li>• Community signal: what premium should look like</li>
           </ul>
         </div>
@@ -436,7 +436,7 @@
 
           <h3 class="mt-3 text-lg md:text-xl font-bold">Premium follow-up on TON (holder-only)</h3>
           <p class="mt-3 muted max-w-3xl">
-            <span class="text-white font-semibold">If TON Fans fully sells out</span>, we plan a premium “Diamond-grade”
+            <span class="text-white font-semibold">If TON Fans fully sells out</span>, we plan a premium "Diamond-grade"
             coin series on <span class="text-white font-semibold">TON</span>, distributed <span class="text-white font-semibold">free to current holders</span>
             via snapshot-based claim.
           </p>
@@ -524,7 +524,7 @@
       <div>
         <div class="text-xs uppercase tracking-[.2em] accent">Gallery</div>
         <h2 class="mt-2 text-2xl md:text-4xl font-extrabold">Four tiers. One identity.</h2>
-        <p class="mt-2 muted max-w-2xl">A few real samples. Diamond tiers are visually obvious — that’s the point.</p>
+        <p class="mt-2 muted max-w-2xl">A few real samples. Diamond tiers are visually obvious — that's the point.</p>
       </div>
     </div>
 
@@ -544,6 +544,9 @@
           <div class="text-xs uppercase tracking-[.2em] accent">Mint</div>
           <h2 class="mt-2 text-4xl md:text-5xl font-semibold leading-tight">One click. No confusion.</h2>
           <p class="mt-3 text-lg muted max-w-2xl">Select a tier, connect your wallet, mint. The mint button will be enabled once the Candy Machine address is set.</p>
+
+          <!-- Supply + Jobs progress (rendered by ui.js) -->
+          <div class="supply-container mt-4"></div>
 
           <div class="mt-6 flex items-center gap-2 flex-wrap">
             <div class="step-pill"><span class="step-num">1</span> Select tier</div>
@@ -628,7 +631,7 @@
         <div class="text-xs uppercase tracking-widest muted2">After mint</div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
           <a id="shareX" class="btn-ghost" target="_blank" rel="noreferrer">Share on X</a>
-          <span class="text-sm muted2">Celebration moment + explorer link will appear here after mint integration.</span>
+          <span id="afterMintMessage" class="text-sm muted2">Celebration moment + explorer link will appear here after mint integration.</span>
         </div>
       </div>
     </div>
@@ -667,7 +670,7 @@
         </div>
 
         <div class="card p-5">
-          <div class="font-semibold">What’s the best tier to mint?</div>
+          <div class="font-semibold">What's the best tier to mint?</div>
           <p class="mt-2 muted text-sm">If you want scarcity: Big Diamond. If you want entry: LittlGEN. BigGEN is a strong middle ground.</p>
         </div>
       </div>
