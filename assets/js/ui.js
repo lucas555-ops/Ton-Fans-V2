@@ -46,8 +46,6 @@
     copyTxBtn: $("copyTxBtn"),
   };
 
-  const MAX_QTY = 3;
-
   const tierCards = () => Array.from(document.querySelectorAll(".tier-card[data-tier]"));
 
   function setHidden(el, hidden){ 
@@ -67,6 +65,12 @@
 
     if (milli % 10 === 0) return rounded3.toFixed(2);
     return rounded3.toFixed(3);
+  }
+
+  function getMaxQty(s){
+    const limRaw = (s && s.mintLimit != null) ? Number(s.mintLimit) : 3;
+    const lim = (Number.isFinite(limRaw) && limRaw > 0) ? Math.floor(limRaw) : 3;
+    return Math.max(1, lim);
   }
 
   // --- Toast (popup) ---
@@ -127,12 +131,13 @@
     if (!els.qty) return;
     let q = Math.floor(Number(v || 1));
     if (!Number.isFinite(q) || q < 1) q = 1;
-    if (q > MAX_QTY) q = MAX_QTY;
+    const maxQ = getMaxQty(window.__TONFANS_STATE__ || {});
+    if (q > maxQ) q = maxQ;
 
     if ("value" in els.qty) {
       els.qty.value = String(q);
       els.qty.setAttribute("min","1");
-      els.qty.setAttribute("max", String(MAX_QTY));
+      els.qty.setAttribute("max", String(maxQ));
     } else {
       els.qty.textContent = String(q);
     }
@@ -475,7 +480,7 @@
     // Top pills
     if (els.netPill) setText(els.netPill, s.cluster === "devnet" ? "Devnet" : (s.cluster || "—"));
     if (els.walletPill) setText(els.walletPill, s.walletConnected ? (s.walletShort || "Connected") : "Not connected");
-    if (els.readyPill) setText(els.readyPill, s.ready ? "Yes" : "No");
+    if (els.readyPill) setText(els.readyPill, (s.ready && s.walletConnected) ? "Yes" : "No");
 
     // Wallet card
     setText(els.walletStatus, s.walletConnected ? "Connected" : "Not connected");
@@ -495,7 +500,7 @@
       // ensure element participates in transitions
       els.tierReady.classList.remove('hidden');
       els.tierReady.classList.remove('ready-pop','ready-hide');
-      if (s.ready) {
+      if (s.ready && s.walletConnected) {
         els.tierReady.classList.add('ready-pop');
       } else {
         els.tierReady.classList.add('ready-hide');
@@ -541,7 +546,9 @@
     }
 
     if (els.qtyPlus) {
-      const atMax = currentQty >= MAX_QTY;
+      const maxQ = getMaxQty(s);
+      const maxInc = (remaining == null) ? maxQ : Math.max(1, Math.min(maxQ, remaining));
+      const atMax = currentQty >= maxInc;
       // Плюс отключаем если: достигнут максимум ИЛИ нельзя минтить вообще
       const dis = atMax || !canMintMore;
       els.qtyPlus.disabled = dis;
@@ -671,9 +678,9 @@
         const s = window.__TONFANS_STATE__ || {};
         const rem = s.mintedRemaining;
         if (rem === 0) {
-          toast("❌ Mint limit reached (3 per wallet)", "error");
-        } else if (rem != null && rem < MAX_QTY) {
-          const lim = (st && st.mintLimit != null) ? Number(st.mintLimit) : 3;
+          toast(`❌ Mint limit reached (${getMaxQty(window.__TONFANS_STATE__||{})} per wallet)`, 'error');
+        } else if (rem != null && rem < getMaxQty(s)) {
+          const lim = getMaxQty(s);
           toast(`📊 Only ${rem}/${lim} remaining.`, "info");
         } else if (!els.qtyPlus.dataset.canMintMore || els.qtyPlus.dataset.canMintMore === "false") {
           toast("⚠️ Cannot increase quantity", "error");
