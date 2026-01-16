@@ -5,6 +5,9 @@
 // - Sticky "Change tier" works
 // - Auto-select saved tier (or first tier on first visit) with retry until mint API is ready
 // - Toasts from mint.js
+// - Supply UI always updates (even when mintedRemaining = null)
+// - Progress bar for "X/Y minted"
+// - View on Solscan + Copy tx buttons after successful mint
 
 (() => {
   console.log("[TONFANS] ui.js v23 loaded");
@@ -41,6 +44,15 @@
     stickyChangeBtn: $("stickyChangeBtn"),
 
     shareX: $("shareX"),
+    viewSolscan: $("viewSolscan"),
+    copyTx: $("copyTx"),
+    afterMintText: $("afterMintText"),
+
+    // Supply elements
+    supplyText: $("supplyText"),
+    supplyRemaining: $("supplyRemaining"),
+    supplyProgressBar: $("supplyProgressBar"),
+    supplyTotal: $("supplyTotal"),
   };
 
   const MAX_QTY = 3;
@@ -147,6 +159,56 @@
     return !!s.walletConnected && !!s.ready && !s.busy;
   }
 
+  // Update Supply UI (always, even when mintedRemaining = null)
+  function updateSupplyUI(s){
+    if (!els.supplyText || !els.supplyRemaining || !els.supplyProgressBar || !els.supplyTotal) return;
+    
+    if (s.itemsAvailable != null && s.itemsRedeemed != null) {
+      const available = s.itemsAvailable;
+      const redeemed = s.itemsRedeemed;
+      const remaining = s.itemsRemaining != null ? s.itemsRemaining : Math.max(0, available - redeemed);
+      
+      els.supplyText.textContent = `${redeemed} / ${available} minted`;
+      els.supplyRemaining.textContent = `Remaining: ${remaining}`;
+      els.supplyTotal.textContent = available;
+      
+      const progress = available > 0 ? (redeemed / available) * 100 : 0;
+      els.supplyProgressBar.style.width = `${progress}%`;
+    } else {
+      els.supplyText.textContent = "— / — minted";
+      els.supplyRemaining.textContent = "Remaining: —";
+      els.supplyTotal.textContent = "—";
+      els.supplyProgressBar.style.width = "0%";
+    }
+  }
+
+  // Update After Mint UI
+  function updateAfterMintUI(s){
+    if (!els.viewSolscan || !els.copyTx || !els.afterMintText) return;
+    
+    const lastTx = s.recentTxSignatures && s.recentTxSignatures[0];
+    if (lastTx) {
+      els.viewSolscan.href = lastTx.explorerUrl;
+      setHidden(els.viewSolscan, false);
+      setHidden(els.copyTx, false);
+      setHidden(els.afterMintText, true);
+      
+      // Update Share X link
+      if (els.shareX) {
+        const shareText = `Just minted TON Fans on Solana! ${lastTx.explorerUrl}`;
+        els.shareX.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
+      }
+    } else {
+      setHidden(els.viewSolscan, true);
+      setHidden(els.copyTx, true);
+      setHidden(els.afterMintText, false);
+      
+      if (els.shareX) {
+        els.shareX.href = "https://x.com/ton_fans";
+      }
+    }
+  }
+
   function render(s){
     window.__TONFANS_STATE__ = s;
 
@@ -208,6 +270,9 @@
     const total = (s.priceSol == null) ? null : (Number(s.priceSol) * getQty());
     setText(els.total, fmtSol(total));
 
+    // Supply UI (ALWAYS updates)
+    updateSupplyUI(s);
+
     // mint button
     if (els.mintBtn){
       const ok = canMint(s);
@@ -243,21 +308,8 @@
       els.mintHelp.href = s.tierRaw ? "#tiers" : "#transparency";
     }
 
-    // After mint: Share on X
-    if (els.shareX){
-      const tx0 = Array.isArray(s.recentTxSignatures) && s.recentTxSignatures.length ? s.recentTxSignatures[0] : null;
-      const sig = tx0?.signature || (typeof tx0 === "string" ? tx0 : null);
-      if (sig) {
-        const explorer = tx0?.explorerUrl || `https://solscan.io/tx/${sig}${(s.cluster === "devnet") ? "?cluster=devnet" : ""}`;
-        const shareText = `Just minted TON Fans on Solana! ${explorer}`;
-        els.shareX.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
-        els.shareX.style.opacity = "1";
-        els.shareX.style.pointerEvents = "auto";
-      } else {
-        els.shareX.href = "https://x.com/ton_fans";
-        els.shareX.style.opacity = ".7";
-      }
-    }
+    // After mint UI
+    updateAfterMintUI(s);
   }
 
   function mintApi(){ return window.TONFANS?.mint; }
@@ -358,6 +410,18 @@
       try { document.getElementById("tiers")?.scrollIntoView({ behavior: "smooth" }); } catch {}
     });
 
+    // Copy tx button
+    if (els.copyTx) {
+      els.copyTx.addEventListener("click", (e) => {
+        e.preventDefault();
+        const s = window.__TONFANS_STATE__ || {};
+        const lastTx = s.recentTxSignatures?.[0];
+        if (lastTx) {
+          window.TONFANS?.mint?.copyTxSignature?.(lastTx.signature);
+        }
+      });
+    }
+
     // events
     window.addEventListener("tonfans:toast", (e) => {
       try { toast(e?.detail?.message, e?.detail?.kind || "info"); } catch {}
@@ -376,6 +440,21 @@
     window.addEventListener("tonfans:state", (e) => {
       try { render(e.detail); } catch (err) { console.error("[TONFANS] render error:", err); }
     });
+
+    // Supply updates from mint.js
+    window.addEventListener("tonfans:supply", (e) => {
+      try {
+        const s = window.__TONFANS_STATE__ || {};
+        if (e.detail) {
+          s.itemsAvailable = e.detail.itemsAvailable;
+          s.itemsRedeemed = e.detail.itemsRedeemed;
+          s.itemsRemaining = e.detail.itemsRemaining;
+          updateSupplyUI(s);
+        }
+      } catch (err) {
+        console.error("[TONFANS] supply update error:", err);
+      }
+    });
   }
 
   function boot(){
@@ -392,6 +471,9 @@
       busy: false,
       hint: "Select a tier.",
       hintKind: "info",
+      itemsAvailable: null,
+      itemsRedeemed: null,
+      itemsRemaining: null,
       recentTxSignatures: [],
     };
 
