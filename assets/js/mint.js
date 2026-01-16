@@ -84,34 +84,6 @@ const TIER_LABEL = {
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 function shortPk(s){ return s ? s.slice(0,4)+"…"+s.slice(-4) : ""; }
 
-// Normalize signature (Umi returns Uint8Array; some wallets return objects)
-function signatureToString(sig){
-  if (!sig) return null;
-  if (typeof sig === 'string') return sig;
-  // common wrappers
-  if (typeof sig === 'object') {
-    if (sig.signature) return signatureToString(sig.signature);
-    if (sig.sig) return signatureToString(sig.sig);
-    if (sig.bytes) return signatureToString(sig.bytes);
-    if (sig.data) return signatureToString(sig.data);
-    // Sometimes signature object has a useful toString (base58)
-    try {
-      const s = String(sig);
-      if (/^[1-9A-HJ-NP-Za-km-z]{20,}$/.test(s)) return s;
-    } catch {}
-  }
-  // Uint8Array / array-like
-  try {
-    const u8 = (sig instanceof Uint8Array) ? sig : (Array.isArray(sig) ? Uint8Array.from(sig) : null);
-    if (u8) {
-      if (SDK && typeof SDK.bs58Encode === 'function') return SDK.bs58Encode(u8);
-      // If SDK not loaded yet, we can't encode safely
-      return null;
-    }
-  } catch {}
-  return null;
-}
-
 function emit(){
   const payload = JSON.parse(JSON.stringify(state));
   window.dispatchEvent(new CustomEvent("tonfans:state", { detail: payload }));
@@ -224,52 +196,6 @@ function extractCounterCount(counter){
   return 0;
 }
 
-function findMintCounterPdaCompat(cg, umi, params){
-  if (typeof cg.findMintCounterPda !== 'function') return null;
-  const variants = [
-    { id: params.id, user: params.user, candyGuard: params.candyGuard },
-    { mintLimitId: params.id, user: params.user, candyGuard: params.candyGuard },
-    { id: params.id, user: params.user, candyGuard: params.candyGuard, guard: params.candyGuard },
-  ];
-  for (const v of variants){
-    try {
-      const pda = cg.findMintCounterPda(umi, v);
-      if (pda) return pda;
-    } catch {}
-  }
-  return null;
-}
-
-async function fetchMintCounterCompat(cg, umi, pda){
-  if (!pda) return null;
-  if (typeof cg.fetchMintCounter === 'function') {
-    try {
-      return await cg.fetchMintCounter(umi, pda);
-    } catch {}
-    // Some versions might accept an args object
-    try {
-      return await cg.fetchMintCounter(umi, { mintCounter: pda });
-    } catch {}
-  }
-  return null;
-}
-
-async function safeFetchMintCounterFromSeedsCompat(cg, umi, params){
-  if (typeof cg.safeFetchMintCounterFromSeeds !== 'function') return null;
-  const variants = [
-    { id: params.id, user: params.user, candyGuard: params.candyGuard },
-    { mintLimitId: params.id, user: params.user, candyGuard: params.candyGuard },
-    { id: params.id, user: params.user, candyGuard: params.candyGuard, guard: params.candyGuard },
-  ];
-  for (const v of variants){
-    try {
-      const res = await cg.safeFetchMintCounterFromSeeds(umi, v);
-      if (res != null) return res;
-    } catch {}
-  }
-  return null;
-}
-
 async function fetchMintedCountOnChain(){
   if (!state.walletConnected || !state.wallet || !state.guardPk) return null;
 
@@ -287,7 +213,7 @@ async function fetchMintedCountOnChain(){
 
     const user = sdk.publicKey(String(state.wallet));
     const candyGuard = sdk.publicKey(String(state.guardPk));
-    const id = MINT_LIMIT_ID;
+    const id = (state.mintLimitId != null) ? state.mintLimitId : MINT_LIMIT_ID;
 
     let counter = null;
     let method = 'none';
@@ -295,11 +221,9 @@ async function fetchMintedCountOnChain(){
     // 1) fetchMintCounter (preferred)
     if (typeof cg.fetchMintCounter === 'function' && typeof cg.findMintCounterPda === 'function') {
       try {
-        const pda = findMintCounterPdaCompat(cg, umi, { id, user, candyGuard });
-        if (!pda) throw new Error('findMintCounterPda failed');
-        try { console.log('[TONFANS] 📍 PDA счетчика:', pda.toString()); } catch { console.log('[TONFANS] 📍 PDA счетчика ready'); }
-        counter = await fetchMintCounterCompat(cg, umi, pda);
-        if (!counter) throw new Error('fetchMintCounter returned empty');
+        const pda = cg.findMintCounterPda(umi, { id, user, candyGuard });
+        console.log('[TONFANS] 📍 PDA счетчика:', pda.toString());
+        counter = await cg.fetchMintCounter(umi, pda);
         method = 'fetchMintCounter';
         console.log('[TONFANS] ✅ Счетчик найден через fetchMintCounter:', counter);
       } catch (e) {
@@ -315,7 +239,7 @@ async function fetchMintedCountOnChain(){
     // 2) Fallback: safeFetchMintCounterFromSeeds
     if (!counter && typeof cg.safeFetchMintCounterFromSeeds === 'function') {
       try {
-        counter = await safeFetchMintCounterFromSeedsCompat(cg, umi, { id, user, candyGuard });
+        counter = await cg.safeFetchMintCounterFromSeeds(umi, { id, user, candyGuard });
         method = 'safeFetchMintCounterFromSeeds';
         console.log('[TONFANS] ✅ Счетчик найден через safeFetchMintCounterFromSeeds:', counter);
       } catch (e) {
@@ -326,8 +250,7 @@ async function fetchMintedCountOnChain(){
     // 3) RPC fallback: compute PDA via findMintCounterPda and check existence
     if (!counter && typeof cg.findMintCounterPda === 'function') {
       try {
-        const pda = findMintCounterPdaCompat(cg, umi, { id, user, candyGuard });
-        if (!pda) throw new Error('findMintCounterPda failed');
+        const pda = cg.findMintCounterPda(umi, { id, user, candyGuard });
         const acc = await umi.rpc.getAccount(pda);
         if (!acc.exists) {
           console.log('[TONFANS] 📝 Счетчик не найден (аккаунт не существует)');
@@ -367,9 +290,11 @@ async function updateWalletMintCounter(){
     return null;
   }
 
-  const capped = Math.min(MAX_QTY, cnt);
+  const limit = (state.mintLimit != null) ? Number(state.mintLimit) : MAX_QTY;
+  const lim = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : MAX_QTY;
+  const capped = Math.min(lim, cnt);
   state.mintedCount = capped;
-  state.mintedRemaining = Math.max(0, MAX_QTY - capped);
+  state.mintedRemaining = Math.max(0, lim - capped);
 
   console.log('[TONFANS] 📊 Обновленные счетчики:', {
     minted: state.mintedCount,
@@ -492,15 +417,8 @@ async function loadSdk(){
   const tmSdk     = await import("https://esm.sh/@metaplex-foundation/mpl-token-metadata@3.4.0?bundle");
   const waSdk     = await import("https://esm.sh/@metaplex-foundation/umi-signer-wallet-adapters@1.4.1?bundle");
   const toolbox   = await import("https://esm.sh/@metaplex-foundation/mpl-toolbox@0.10.0?bundle");
-  // Needed to display tx signatures reliably: Umi returns Uint8Array signatures
-  const bs58Mod    = await import("https://esm.sh/bs58@5.0.0?bundle");
-  const bs58Encode = (bytes) => {
-    const api = bs58Mod.default || bs58Mod;
-    return api.encode(bytes);
-  };
 
   SDK = {
-    bs58Encode: bs58Encode,
     createUmi: umiBundle.createUmi,
     publicKey: umiCore.publicKey,
     generateSigner: umiCore.generateSigner,
@@ -683,6 +601,46 @@ function extractSolPaymentDestination(guards){
   return null;
 }
 
+function normalizeSignature(sig){
+  if (!sig) return null;
+  if (typeof sig === 'string') return sig;
+  if (typeof sig === 'object') {
+    const cand = sig.signature ?? sig.txSignature ?? sig.sig ?? sig.value ?? null;
+    if (typeof cand === 'string') return cand;
+    if (cand && typeof cand.toString === 'function') {
+      const t = String(cand);
+      if (t && !t.includes('[object')) return t;
+    }
+  }
+  try {
+    const t = String(sig);
+    return t && !t.includes('[object') ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+function extractMintLimitInfo(guards){
+  const ml = guards?.mintLimit;
+  if (!ml) return null;
+
+  const kind = ml.__kind ?? ml.__option ?? null;
+  if (kind && String(kind).toLowerCase().includes('none')) return null;
+
+  const inner = ml.value ?? (Array.isArray(ml.fields) ? ml.fields[0] : null) ?? ml;
+
+  const id = inner?.id ?? inner?.identifier ?? (Array.isArray(inner?.fields) ? inner.fields[0] : null);
+  const limit = inner?.limit ?? inner?.max ?? inner?.value ?? inner?.count ?? (Array.isArray(inner?.fields) ? inner.fields[1] : null);
+
+  const idNum = Number(id);
+  const limitNum = Number(limit);
+  const out = {};
+  if (Number.isFinite(idNum)) out.id = Math.floor(idNum);
+  if (Number.isFinite(limitNum)) out.limit = Math.floor(limitNum);
+
+  return Object.keys(out).length ? out : null;
+}
+
 // -------- state
 const state = {
   cluster: CLUSTER,
@@ -712,6 +670,7 @@ const state = {
   // flags
   ready: false,
   mintLimit: MAX_QTY,
+  mintLimitId: MINT_LIMIT_ID,
 
   // per-wallet mint counter
   mintedCount: null,
@@ -852,6 +811,18 @@ async function refresh(){
     state.isFree = (lamports == null);
     state.priceSol = state.isFree ? 0 : lamportsToSol(lamports);
 
+    // sanity: if destination equals connected wallet, user will only see network fees
+    try {
+      if (!state.isFree && state.walletConnected && state.wallet && state.solDestination && String(state.solDestination) === String(state.wallet)) {
+        console.warn('[TONFANS] ⚠️ solPayment destination equals minter wallet — price will not be charged (only fees/rent). Check Candy Guard config.');
+      }
+    } catch {}
+
+    // mintLimit (id + limit)
+    const ml = extractMintLimitInfo(resolved.guards);
+    state.mintLimitId = (ml && Number.isFinite(ml.id)) ? ml.id : MINT_LIMIT_ID;
+    state.mintLimit = (ml && Number.isFinite(ml.limit)) ? ml.limit : MAX_QTY;
+
     // readiness
     if (state.itemsRemaining === 0) {
       state.ready = false;
@@ -887,29 +858,32 @@ async function refresh(){
 
 // ТОПОВАЯ ФИЧА: добавляем транзакцию в историю
 function addRecentTransaction(signature){
-  const sig = signatureToString(signature);
-  if (!sig) return;
-
+  signature = normalizeSignature(signature);
+  if (!signature) return;
+  
   const explorerUrl = (state.cluster === 'devnet')
-    ? `https://solscan.io/tx/${sig}?cluster=devnet`
-    : `https://solscan.io/tx/${sig}`;
-
+    ? `https://solscan.io/tx/${signature}?cluster=devnet`
+    : `https://solscan.io/tx/${signature}`;
   const txRecord = {
-    signature: sig,
+    signature,
     explorerUrl,
     timestamp: Date.now(),
-    shortSig: sig.slice(0, 8) + '…' + sig.slice(-8),
+    shortSig: signature.slice(0, 8) + "…" + signature.slice(-8)
   };
-
+  
+  // Добавляем в начало массива (новые сверху)
   state.recentTxSignatures.unshift(txRecord);
+  
+  // Ограничиваем до 10 последних
   if (state.recentTxSignatures.length > 10) {
     state.recentTxSignatures = state.recentTxSignatures.slice(0, 10);
   }
-
+  
+  // Сохраняем в localStorage для persistence
   try {
-    localStorage.setItem('tonfans:recentTxs', JSON.stringify(state.recentTxSignatures));
+    localStorage.setItem("tonfans:recentTxs", JSON.stringify(state.recentTxSignatures));
   } catch {}
-
+  
   emit();
 }
 
@@ -918,7 +892,9 @@ async function mintNow(qty=1){
   if (!state.walletConnected) throw new Error("Connect wallet first.");
   if (!state.ready) throw new Error(state.itemsRemaining === 0 ? "Sold out." : "Not ready.");
 
-  const q = Math.max(1, Math.min(MAX_QTY, Number(qty || 1)));
+  const limit = (state.mintLimit != null) ? Number(state.mintLimit) : MAX_QTY;
+  const lim = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : MAX_QTY;
+  const q = Math.max(1, Math.min(lim, Number(qty || 1)));
 
   // Pre-check mintLimit
   await updateWalletMintCounter();
@@ -932,7 +908,8 @@ async function mintNow(qty=1){
 
   // Сценарий 1: Мы ЗНАЕМ, что осталось 0
   if (state.mintedRemaining !== null && state.mintedRemaining <= 0) {
-    const msg = '❌ Mint limit reached (3 per wallet)';
+    const limMsg = (state.mintLimit != null) ? String(state.mintLimit) : String(MAX_QTY);
+    const msg = `❌ Mint limit reached (${limMsg} per wallet)`;
     console.log('[TONFANS] ' + msg);
     setHint(msg, 'error');
     emitToast(msg, 'error');
@@ -946,7 +923,7 @@ async function mintNow(qty=1){
   // Сценарий 3: Мы знаем количество, но запрашиваем больше, чем осталось
   if (state.mintedRemaining !== null && q > state.mintedRemaining) {
     const remaining = state.mintedRemaining;
-    const msg = `Только ${remaining}/3 осталось — изменяю количество на ${remaining}.`;
+    const msg = `Только ${remaining}/${(state.mintLimit ?? MAX_QTY)} осталось — изменяю количество на ${remaining}.`;
     setHint(msg, 'info');
     emitToast(msg, 'info');
     await _executeMint(remaining);
@@ -994,7 +971,10 @@ async function _executeMint(qty){
     if (guards?.solPayment && state.solDestination) {
       mintArgs.solPayment = { destination: SDK.publicKey(String(state.solDestination)) };
     }
-    if (guards?.mintLimit) mintArgs.mintLimit = { id: MINT_LIMIT_ID };
+    if (guards?.mintLimit) {
+      const id = (state.mintLimitId != null) ? state.mintLimitId : MINT_LIMIT_ID;
+      mintArgs.mintLimit = { id };
+    }
 
     function pick(obj, paths) {
       for (const p of paths) {
@@ -1046,7 +1026,7 @@ async function _executeMint(qty){
 
       let signature = null;
       try {
-        signature = await builder.sendAndConfirm(umi);
+        signature = normalizeSignature(await builder.sendAndConfirm(umi));
       } catch (e) {
         if (isBlockhashNotFound(e) || isRecentBlockhashFailed(e)) {
           setHint("RPC/blockhash hiccup — retrying…", "info");
@@ -1054,23 +1034,17 @@ async function _executeMint(qty){
           const builder2 = sdk.transactionBuilder()
             .add(sdk.setComputeUnitLimit(umi, { units: CU_LIMIT }))
             .add(ix);
-          signature = await builder2.sendAndConfirm(umi);
+          signature = normalizeSignature(await builder2.sendAndConfirm(umi));
         } else {
           throw e;
         }
       }
       
-      if (signature) {
-        const sigStr = signatureToString(signature);
-        if (sigStr) {
-          signatures.push(sigStr);
-          addRecentTransaction(sigStr);
-        } else {
-          // keep raw in debug, but don't break UI
-          console.warn('[TONFANS] Could not stringify signature', signature);
-        }
+      if (signature && typeof signature === 'string') {
+        signatures.push(signature);
+        addRecentTransaction(signature); // ТОПОВАЯ ФИЧА: сохраняем каждую транзакцию
       }
-
+      
       await sleep(150);
     }
 
@@ -1138,7 +1112,6 @@ async function _executeMint(qty){
 
 // Copy transaction signature
 function copyTxSignature(signature){
-  signature = signatureToString(signature) || signature;
   if (!signature && state.recentTxSignatures.length > 0) {
     signature = state.recentTxSignatures[0].signature;
   }
