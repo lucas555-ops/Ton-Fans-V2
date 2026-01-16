@@ -581,9 +581,10 @@
         els.mintBtn.title = "";
       }
 
+      const bypassArmed = !!(s.limitCheckBypassUntil && Date.now() < s.limitCheckBypassUntil);
       els.mintBtn.textContent = s.busy
         ? (s.busyLabel || "Working…")
-        : (limitReached ? "Limit reached" : "Mint now");
+        : (limitReached ? "Limit reached" : (bypassArmed ? "Mint anyway" : "Mint now"));
     }
 
     // Sticky action button (Apple-grade)
@@ -603,7 +604,8 @@
         els.stickyActionBtn.setAttribute("aria-disabled", (!okSticky || limitReached) ? "true" : "false");
         els.stickyActionBtn.dataset.mode = limitReached ? "limit" : "mint";
 
-        els.stickyActionBtn.textContent = limitReached ? "Limit" : "Mint";
+        const bypassArmed = !!(s.limitCheckBypassUntil && Date.now() < s.limitCheckBypassUntil);
+        els.stickyActionBtn.textContent = limitReached ? "Limit" : (bypassArmed ? "Mint anyway" : "Mint");
         els.stickyActionBtn.style.opacity = limitReached ? "0.62" : (okSticky ? "1" : ".55");
         els.stickyActionBtn.style.cursor = okSticky ? (limitReached ? "help" : "pointer") : "not-allowed";
         els.stickyActionBtn.title = limitReached ? "Mint limit reached" : "";
