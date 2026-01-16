@@ -1229,7 +1229,18 @@ async function _executeMint(qty){
 
     // Friendly mapping for insufficient SOL in wallet
     if (raw.includes('insufficient funds for rent') || raw.includes('NotEnoughSOL') || raw.includes('Not enough SOL')) {
-      // Try to extract actual amounts from logs (if available)
+      // Dynamically calculate minimum needed based on NFT price + qty
+      let minimumNeeded = null;
+      
+      // Calculate: (price per NFT * qty) + network fee (~0.006 SOL) + treasury rent (~0.001 SOL)
+      if (state.priceSol != null && Number.isFinite(state.priceSol)) {
+        const nftCost = state.priceSol * qty;      // e.g., 0.1 * 1 = 0.1 SOL
+        const networkFee = 0.006;                   // ~6000 lamports for computation
+        const treasuryRent = 0.001;                 // initialization if needed
+        minimumNeeded = nftCost + networkFee + treasuryRent;
+      }
+      
+      // Try to extract actual amounts from logs
       let needed = null;
       let have = null;
       
@@ -1239,14 +1250,26 @@ async function _executeMint(qty){
         if (match) {
           const neededLamports = parseInt(match[1], 10);
           const haveLamports = parseInt(match[2], 10);
-          needed = (neededLamports / 1_000_000_000).toFixed(2);
+          needed = (neededLamports / 1_000_000_000).toFixed(3);
           have = (haveLamports / 1_000_000_000).toFixed(4);
         }
       } catch {}
 
-      const msg = needed && have 
-        ? `❌ Not enough SOL in wallet\n\nYou need: ${needed} SOL\nYou have: ${have} SOL\n\nPlease add more SOL and try again.`
-        : `❌ Not enough SOL in wallet\n\nPlease add more SOL and try again.`;
+      // Build friendly message with breakdown
+      let msg = '❌ Not enough SOL in wallet\n\n';
+      
+      if (minimumNeeded) {
+        msg += `Minimum needed:\n`;
+        msg += `• ${qty}x ${state.tierLabel}: ${(state.priceSol * qty).toFixed(2)} SOL\n`;
+        msg += `• Network fee: ~0.006 SOL\n`;
+        msg += `• Total minimum: ${minimumNeeded.toFixed(3)} SOL\n\n`;
+      }
+      
+      if (have) {
+        msg += `You currently have: ${have} SOL\n\n`;
+      }
+      
+      msg += 'Please add more SOL and try again.';
       
       setHint(msg, 'error');
       emitToast(msg, 'error');
