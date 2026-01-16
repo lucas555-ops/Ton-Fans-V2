@@ -7,6 +7,49 @@
 
 const MINT_LIMIT_ID = 1;
 const MAX_QTY = 3;
+
+// Candy Guard program id (same for devnet/mainnet)
+const CANDY_GUARD_PROGRAM_ID = "Guard1JwRhJkVH6XZhzoYxeBVQe872VH4yceq5M1eD4";
+const MINT_COUNTER_PREFIX = "mint_limit";
+
+function u8(n){
+  return Uint8Array.of(n & 0xff);
+}
+function u16le(n){
+  const b = new Uint8Array(2);
+  b[0] = n & 0xff;
+  b[1] = (n >> 8) & 0xff;
+  return b;
+}
+function idSeedBytes(id){
+  const n = Number(id);
+  if (Number.isFinite(n) && n >= 0 && n <= 255) return u8(n);
+  if (Number.isFinite(n) && n >= 0 && n <= 65535) return u16le(n);
+  // fallback: clamp
+  return u8(0);
+}
+function readU64LE(data, offset){
+  let x = 0n;
+  for (let i=0;i<8;i++) x |= BigInt(data[offset+i] || 0) << (8n*BigInt(i));
+  return x;
+}
+async function findMintCounterPdaLocal({ sdk, candyGuardPk, candyMachinePk, userPk, mintLimitId }){
+  // Seeds per Metaplex Candy Guard: ["mint_limit", id, payer, candyGuard, candyMachine]
+  // (See mpl-core-candy-guard docs)
+  const programId = sdk.publicKey(CANDY_GUARD_PROGRAM_ID);
+  const seeds = [
+    new TextEncoder().encode(MINT_COUNTER_PREFIX),
+    idSeedBytes(mintLimitId),
+    sdk.publicKey(String(userPk)).bytes,
+    sdk.publicKey(String(candyGuardPk)).bytes,
+    sdk.publicKey(String(candyMachinePk)).bytes,
+  ];
+
+  // Umi exposes PDA finder on eddsa
+  if (!umi?.eddsa?.findPda) throw new Error('Umi eddsa.findPda not available');
+  const [pda] = umi.eddsa.findPda(programId, seeds);
+  return pda;
+}
 const CU_LIMIT = 800_000;
 
 const DEVNET_RPCS = [
@@ -217,84 +260,37 @@ function extractCounterCount(counter){
 }
 
 async function fetchMintedCountOnChain(){
-  if (!state.walletConnected || !state.wallet || !state.guardPk || !state.cmId) return null;
-
-  console.log('[TONFANS] 🔍 Запрашиваю счетчик минтов...', {
-    wallet: state.walletShort,
-    guard: state.guardPk ? shortPk(state.guardPk) : null,
-    tier: state.tierKey
-  });
+  if (!state.walletConnected || !state.wallet || !state.guardPk || !state.cmPk) return null;
 
   try {
     await loadSdk();
     if (!umi) await rebuildUmi();
     const sdk = SDK;
-    const cg = await loadCgSdk();
 
     const user = sdk.publicKey(String(state.wallet));
-    const candyGuard = sdk.publicKey(String(state.guardPk));
-    const candyMachine = sdk.publicKey(String(state.cmId));
-    const id = (state.mintLimitId != null) ? state.mintLimitId : MINT_LIMIT_ID;
+    const guard = sdk.publicKey(String(state.guardPk));
+    const cm = sdk.publicKey(String(state.cmPk));
+    const id = Number(state.mintLimitId);
 
-    let counter = null;
-    let method = 'none';
+    if (!Number.isFinite(id)) return null;
 
-    // 1) fetchMintCounter (preferred)
-    if (typeof cg.fetchMintCounter === 'function' && typeof cg.findMintCounterPda === 'function') {
-      try {
-        const pda = cg.findMintCounterPda(umi, { id, user, candyGuard, candyMachine });
-        console.log('[TONFANS] 📍 PDA счетчика:', pda.toString());
-        counter = await cg.fetchMintCounter(umi, pda);
-        method = 'fetchMintCounter';
-        console.log('[TONFANS] ✅ Счетчик найден через fetchMintCounter:', counter);
-      } catch (e) {
-        const msg = String(e?.message || e || '');
-        console.log('[TONFANS] ❌ fetchMintCounter error:', msg);
-        if (msg.toLowerCase().includes('accountnotfound') || msg.toLowerCase().includes('account not found')) {
-          console.log('[TONFANS] 📝 Счетчик не найден, считаем 0 минтов');
-          return 0;
-        }
-      }
-    }
+    // derive PDA locally (no external cg sdk import)
+    const pda = await findMintCounterPdaLocal({ sdk, candyGuardPk: guard, candyMachinePk: cm, userPk: user, mintLimitId: id });
 
-    // 2) Fallback: safeFetchMintCounterFromSeeds
-    if (!counter && typeof cg.safeFetchMintCounterFromSeeds === 'function') {
-      try {
-        counter = await cg.safeFetchMintCounterFromSeeds(umi, { id, user, candyGuard, candyMachine });
-        method = 'safeFetchMintCounterFromSeeds';
-        console.log('[TONFANS] ✅ Счетчик найден через safeFetchMintCounterFromSeeds:', counter);
-      } catch (e) {
-        console.log('[TONFANS] ❌ safeFetchMintCounterFromSeeds error:', String(e?.message || e || ''));
-      }
-    }
+    const acc = await umi.rpc.getAccount(pda).catch(() => null);
+    if (!acc || !acc.exists) return 0;
 
-    // 3) RPC fallback: compute PDA via findMintCounterPda and check existence
-    if (!counter && typeof cg.findMintCounterPda === 'function') {
-      try {
-        const pda = cg.findMintCounterPda(umi, { id, user, candyGuard, candyMachine });
-        const acc = await umi.rpc.getAccount(pda);
-        if (!acc.exists) {
-          console.log('[TONFANS] 📝 Счетчик не найден (аккаунт не существует)');
-          return 0;
-        }
-        // If exists but fetch failed earlier, treat as 0-safe
-        console.log('[TONFANS] ✅ PDA существует, но fetch не дал объект — считаем 0');
-        return 0;
-      } catch (e) {
-        console.log('[TONFANS] ❌ RPC fallback error:', String(e?.message || e || ''));
-      }
-    }
+    const data = acc.data;
+    if (!(data instanceof Uint8Array) || data.length < 10) return 0;
 
-    if (!counter) {
-      console.log('[TONFANS] 📝 Счетчик не найден, считаем 0 минтов');
-      return 0;
-    }
-
-    const count = extractCounterCount(counter);
-    console.log(`[TONFANS] ✅ Извлеченное значение: ${count} (метод: ${method})`);
-    return count;
-  } catch (error) {
-    console.error('[TONFANS] ❌ Ошибка получения счетчика минтов:', error);
+    // Most Metaplex accounts are: 8-byte discriminator + fields.
+    // MintCounterAccountData includes only `count`.
+    const count = readU64LE(data, 8);
+    const n = Number(count);
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return n;
+  } catch (e) {
+    console.warn('[TONFANS] mint counter fetch failed', e);
     return null;
   }
 }
