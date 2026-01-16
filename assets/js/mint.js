@@ -110,6 +110,26 @@ function emitToast(message, kind="info"){
   } catch {}
 }
 
+// Apple-grade UX: если не удалось проверить лимит (RPC/SDK деградация),
+// не заставляем пользователя "кликать второй раз".
+// Вместо этого показываем понятный confirm до открытия кошелька.
+function confirmProceedWithoutLimitCheck(){
+  const msg = "Can't verify mint limit right now (RPC/SDK issue). Continue anyway? If your wallet already reached the limit, you may pay only the network fee.";
+  try {
+    // allow UI override
+    const fn = window?.TONFANS?.ui?.confirmProceed;
+    if (typeof fn === 'function') {
+      const r = fn(msg);
+      if (typeof r === 'boolean') return r;
+    }
+  } catch {}
+  try {
+    return window.confirm(msg);
+  } catch {
+    return false;
+  }
+}
+
 function emitQty(qty){
   try {
     const q = Number(qty);
@@ -281,7 +301,14 @@ async function fetchMintedCountOnChain(){
 
 async function updateWalletMintCounter(){
   console.log('[TONFANS] 🔄 Обновляю счетчик минтов...');
-  const cnt = await fetchMintedCountOnChain();
+  // Robust: пробуем несколько RPC, чтобы не лочить минт из-за временного сбоя.
+  let cnt = null;
+  for (let attempt = 0; attempt < rpcs().length; attempt++){
+    cnt = await fetchMintedCountOnChain();
+    if (cnt !== null) break;
+    try { await rotateRpc(); } catch {}
+    await sleep(120);
+  }
 
   if (cnt === null) {
     // Ошибка при получении
@@ -956,29 +983,23 @@ async function mintNow(qty=1){
   }
 
   // Сценарий 2: мы не знаем (null) — НЕ ТРАВМИРУЕМ ЮЗЕРА И НЕ ТРАТИМ FEE
-  // Если не удалось проверить счётчик (RPC/SDK issue), НЕ отправляем транзакцию.
+  // Если не удалось проверить счётчик (RPC/SDK issue), не делаем "двойной клик".
+  // Показываем confirm ДО открытия кошелька: Cancel → ничего, OK → продолжаем.
   if (state.mintedRemaining === null) {
-    const now = Date.now();
-    const armed = state.limitCheckBypassUntil && now < state.limitCheckBypassUntil;
-
-    if (armed) {
-      const msg = "Proceeding without mint-limit verification (RPC/SDK issue). If your wallet already reached the limit, you may pay only the network fee.";
-      console.log('[TONFANS] ⚠️ '+msg);
-      setHint(msg, 'info');
-      emitToast(msg, 'info');
-      // continue to execute mint
-      await _executeMint(q);
-      return;
-    }
-
-    // Arm a short bypass window so user can explicitly proceed if they want.
-    state.limitCheckBypassUntil = now + 15000; // 15s
     state.mintLimitVerified = false;
-    const msg = "Can't verify mint limit right now. Tap Mint again to proceed anyway (may incur network fee).";
-    console.log('[TONFANS] ⚠️ '+msg);
-    setHint(msg, 'error');
-    emitToast(msg, 'error');
+    const warn = "Can't verify mint limit right now (RPC/SDK issue). Continue anyway? If your wallet already reached the limit, you may pay only the network fee.";
+    console.log('[TONFANS] ⚠️ '+warn);
+    setHint(warn, 'error');
+    emitToast(warn, 'error');
     emit();
+
+    const ok = confirmProceedWithoutLimitCheck();
+    if (!ok) return;
+
+    const msg = "Proceeding without mint-limit verification…";
+    setHint(msg, 'info');
+    emitToast(msg, 'info');
+    await _executeMint(q);
     return;
   }
 
