@@ -197,7 +197,7 @@ function extractCounterCount(counter){
 }
 
 async function fetchMintedCountOnChain(){
-  if (!state.walletConnected || !state.wallet || !state.guardPk) return null;
+  if (!state.walletConnected || !state.wallet || !state.guardPk || !state.cmId) return null;
 
   console.log('[TONFANS] 🔍 Запрашиваю счетчик минтов...', {
     wallet: state.walletShort,
@@ -213,6 +213,7 @@ async function fetchMintedCountOnChain(){
 
     const user = sdk.publicKey(String(state.wallet));
     const candyGuard = sdk.publicKey(String(state.guardPk));
+    const candyMachine = sdk.publicKey(String(state.cmId));
     const id = (state.mintLimitId != null) ? state.mintLimitId : MINT_LIMIT_ID;
 
     let counter = null;
@@ -221,7 +222,7 @@ async function fetchMintedCountOnChain(){
     // 1) fetchMintCounter (preferred)
     if (typeof cg.fetchMintCounter === 'function' && typeof cg.findMintCounterPda === 'function') {
       try {
-        const pda = cg.findMintCounterPda(umi, { id, user, candyGuard });
+        const pda = cg.findMintCounterPda(umi, { id, user, candyGuard, candyMachine });
         console.log('[TONFANS] 📍 PDA счетчика:', pda.toString());
         counter = await cg.fetchMintCounter(umi, pda);
         method = 'fetchMintCounter';
@@ -239,7 +240,7 @@ async function fetchMintedCountOnChain(){
     // 2) Fallback: safeFetchMintCounterFromSeeds
     if (!counter && typeof cg.safeFetchMintCounterFromSeeds === 'function') {
       try {
-        counter = await cg.safeFetchMintCounterFromSeeds(umi, { id, user, candyGuard });
+        counter = await cg.safeFetchMintCounterFromSeeds(umi, { id, user, candyGuard, candyMachine });
         method = 'safeFetchMintCounterFromSeeds';
         console.log('[TONFANS] ✅ Счетчик найден через safeFetchMintCounterFromSeeds:', counter);
       } catch (e) {
@@ -250,7 +251,7 @@ async function fetchMintedCountOnChain(){
     // 3) RPC fallback: compute PDA via findMintCounterPda and check existence
     if (!counter && typeof cg.findMintCounterPda === 'function') {
       try {
-        const pda = cg.findMintCounterPda(umi, { id, user, candyGuard });
+        const pda = cg.findMintCounterPda(umi, { id, user, candyGuard, candyMachine });
         const acc = await umi.rpc.getAccount(pda);
         if (!acc.exists) {
           console.log('[TONFANS] 📝 Счетчик не найден (аккаунт не существует)');
@@ -525,13 +526,40 @@ async function withFailover(fn){
 
 function toBigIntMaybe(v){
   if (v == null) return null;
-  if (typeof v === "bigint") return v;
-  if (typeof v === "number" && Number.isFinite(v)) return BigInt(Math.trunc(v));
-  if (typeof v === "string") { try { return BigInt(v); } catch { return null; } }
-  if (typeof v === "object") {
+  if (typeof v === 'bigint') return v;
+  if (typeof v === 'number' && Number.isFinite(v)) return BigInt(Math.trunc(v));
+  if (typeof v === 'string') {
+    try { return BigInt(v); } catch { return null; }
+  }
+
+  if (typeof v === 'object') {
+    // Common wrappers
     const inner = v.basisPoints ?? v.lamports ?? v.amount ?? v.value ?? null;
     if (inner != null) return toBigIntMaybe(inner);
+
+    // BN/u64-like objects
+    try {
+      if (typeof v.toBigInt === 'function') {
+        const bi = v.toBigInt();
+        if (typeof bi === 'bigint') return bi;
+      }
+    } catch {}
+
+    try {
+      if (typeof v.toString === 'function') {
+        const s = String(v.toString());
+        if (s && /^\d+$/.test(s)) return BigInt(s);
+      }
+    } catch {}
+
+    try {
+      if (typeof v.toNumber === 'function') {
+        const n = v.toNumber();
+        if (typeof n === 'number' && Number.isFinite(n)) return BigInt(Math.trunc(n));
+      }
+    } catch {}
   }
+
   return null;
 }
 
