@@ -112,7 +112,8 @@
       "rgba(255,255,255,0.12)";
 
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.style.display = "none"; }, 2600);
+    // Increased from 2600ms to 5000ms so users have time to read important messages
+    toastTimer = setTimeout(() => { el.style.display = "none"; }, 5000);
   }
 
   function readQtyRaw(){
