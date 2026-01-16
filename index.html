@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -22,81 +23,80 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 
   <style>
-    :root{
-      --bg:#070A12;
-      --card:rgba(255,255,255,.055);
-      --stroke:rgba(255,255,255,.10);
-      --ton:#0098EA;
-      --ton2:#00C1FF;
-      --good:rgba(16,185,129,.9);
-      --warn:rgba(245,158,11,.95);
+    :root {
+      --bg: #070A12;
+      --card: rgba(255,255,255,.055);
+      --stroke: rgba(255,255,255,.10);
+      --ton: #0098EA;
+      --ton2: #00C1FF;
+      --good: rgba(16,185,129,.9);
+      --warn: rgba(245,158,11,.95);
     }
-    body{font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);}
-    .glass{backdrop-filter:saturate(180%) blur(12px); background:rgba(255,255,255,.045);}
-    .hairline{border:1px solid var(--stroke);}
-    .btn-primary{
-      position:relative;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
-      padding:.78rem 1.05rem;border-radius:1rem;font-weight:700;color:#071016;
-      transition:transform .15s ease, box-shadow .25s ease, filter .25s ease;
+    body { font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); }
+    .glass { backdrop-filter: saturate(180%) blur(12px); background: rgba(255,255,255,.045); }
+    .hairline { border: 1px solid var(--stroke); }
+    .btn-primary {
+      position: relative; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+      padding: .78rem 1.05rem; border-radius: 1rem; font-weight: 700; color: #071016;
+      transition: transform .15s ease, box-shadow .25s ease, filter .25s ease;
     }
-    .btn-primary::before{
-      content:"";position:absolute;inset:0;border-radius:inherit;z-index:-1;
+    .btn-primary::before {
+      content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: -1;
       background:
         radial-gradient(120% 140% at 30% 30%, rgba(0,193,255,.35) 0%, rgba(0,152,234,.22) 40%, rgba(0,152,234,0) 75%),
-        linear-gradient(180deg,var(--ton),var(--ton2));
+        linear-gradient(180deg, var(--ton), var(--ton2));
     }
-    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 0 28px rgba(0,193,255,.25);}
-    .btn-primary:active{transform:translateY(0px);filter:saturate(1.1);}
-    .btn-ghost{
-      display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
-      padding:.78rem 1.05rem;border-radius:1rem;font-weight:700;
-      border:1px solid rgba(255,255,255,.14);
-      transition:border-color .2s ease, transform .15s ease, background .2s ease;
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 0 28px rgba(0,193,255,.25); }
+    .btn-primary:active { transform: translateY(0px); filter: saturate(1.1); }
+    .btn-ghost {
+      display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+      padding: .78rem 1.05rem; border-radius: 1rem; font-weight: 700;
+      border: 1px solid rgba(255,255,255,.14);
+      transition: border-color .2s ease, transform .15s ease, background .2s ease;
     }
-    .btn-ghost:hover{border-color:rgba(255,255,255,.24);background:rgba(255,255,255,.03);transform:translateY(-1px);}
-    .pill{
-      display:inline-flex;align-items:center;gap:.5rem;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(255,255,255,.03);
-      border-radius:9999px;padding:.38rem .62rem;font-size:.78rem;color:rgba(255,255,255,.78);
+    .btn-ghost:hover { border-color: rgba(255,255,255,.24); background: rgba(255,255,255,.03); transform: translateY(-1px); }
+    .pill {
+      display: inline-flex; align-items: center; gap: .5rem;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.03);
+      border-radius: 9999px; padding: .38rem .62rem; font-size: .78rem; color: rgba(255,255,255,.78);
     }
-    .card{
-      background:var(--card);
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:1.25rem;
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 1.25rem;
     }
-    .card:hover{border-color:rgba(255,255,255,.18);}
-    .soft-glow{
-      box-shadow:0 0 0 1px rgba(255,255,255,.04), 0 20px 80px rgba(0,193,255,.12);
+    .card:hover { border-color: rgba(255,255,255,.18); }
+    .soft-glow {
+      box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 20px 80px rgba(0,193,255,.12);
     }
-    .kbd{
-      font-size:.72rem;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(255,255,255,.04);
-      border-radius:.55rem;
-      padding:.2rem .45rem;
-      color:rgba(255,255,255,.8);
+    .kbd {
+      font-size: .72rem;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      border-radius: .55rem;
+      padding: .2rem .45rem;
+      color: rgba(255,255,255,.8);
     }
-    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
-    .muted{color:rgba(255,255,255,.72);}
-    .muted2{color:rgba(255,255,255,.58);}
-    .accent{color:var(--ton2);}
-    .grad-text{
-      background:linear-gradient(90deg, rgba(0,193,255,1) 0%, rgba(0,152,234,1) 40%, rgba(160,225,255,.9) 100%);
-      -webkit-background-clip:text;background-clip:text;color:transparent;
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .muted { color: rgba(255,255,255,.72); }
+    .muted2 { color: rgba(255,255,255,.58); }
+    .accent { color: var(--ton2); }
+    .grad-text {
+      background: linear-gradient(90deg, rgba(0,193,255,1) 0%, rgba(0,152,234,1) 40%, rgba(160,225,255,.9) 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
     }
-    .anchor{scroll-margin-top:92px;}
-    .tier-selected{border-color:rgba(0,193,255,.55) !important; box-shadow:0 0 0 1px rgba(0,193,255,.25), 0 24px 80px rgba(0,193,255,.10);}
-    .tier-badge{
-      background:rgba(0,193,255,.10);
-      border:1px solid rgba(0,193,255,.25);
-      color:rgba(220,248,255,.95);
-      padding:.25rem .55rem;border-radius:9999px;font-size:.75rem;font-weight:700;
+    .anchor { scroll-margin-top: 92px; }
+    .tier-selected { border-color: rgba(0,193,255,.55) !important; box-shadow: 0 0 0 1px rgba(0,193,255,.25), 0 24px 80px rgba(0,193,255,.10); }
+    .tier-badge {
+      background: rgba(0,193,255,.10);
+      border: 1px solid rgba(0,193,255,.25);
+      color: rgba(220,248,255,.95);
+      padding: .25rem .55rem; border-radius: 9999px; font-size: .75rem; font-weight: 700;
     }
-  
     /* Subtle status dots on pills (Apple-level) */
-    .pills .pill{ position: relative; }
-    .pills .pill.connected::before{
+    .pills .pill { position: relative; }
+    .pills .pill.connected::before {
       content: "";
       width: 6px; height: 6px;
       border-radius: 999px;
@@ -107,50 +107,39 @@
       animation: dotPulse 1.4s infinite;
       transform: translateY(-0.5px);
     }
-    @keyframes dotPulse{
-      0%{ box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.28); }
-      70%{ box-shadow: 0 0 0 8px rgba(46, 204, 113, 0.0); }
-      100%{ box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.0); }
+    @keyframes dotPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.28); }
+      70%  { box-shadow: 0 0 0 8px rgba(46, 204, 113, 0.0); }
+      100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.0); }
     }
     /* extra subtle tint for Ready=Yes */
-    .pills .pill.ready-yes{
+    .pills .pill.ready-yes {
       border-color: rgba(46, 204, 113, 0.35);
       background: rgba(46, 204, 113, 0.06);
     }
     /* Sticky Mint Bar styles live in assets/css/components.css */
-
     /* After mint section */
-    #afterMintSection {
-      transition: opacity 0.3s ease;
-    }
-    
+    #afterMintSection { transition: opacity 0.3s ease; }
     /* Progress bar */
-    #supplyProgressBar {
-      min-height: 30px;
-    }
-    
+    #supplyProgressBar { min-height: 30px; }
     /* Hidden utility */
-    .hidden {
-      display: none !important;
-    }
+    .hidden { display: none !important; }
   </style>
   <link rel="stylesheet" href="assets/css/components.css" />
 </head>
-
 <body class="text-zinc-100">
   <!-- NAV -->
   <header class="sticky top-0 z-50 glass border-b border-white/10">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
       <a href="#" class="flex items-center gap-3">
         <div class="w-9 h-9 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
-          <img src="static/ton.png" alt="TON" class="w-5 h-5"/>
+          <img src="static/ton.png" alt="TON" class="w-5 h-5" />
         </div>
         <div class="leading-tight">
           <div class="font-semibold tracking-wide">TON Fans</div>
           <div class="text-xs muted2">Mint on Solana</div>
         </div>
       </a>
-
       <nav class="hidden md:flex items-center gap-5 text-sm muted">
         <a href="#tiers" class="hover:text-white">Tiers</a>
         <a href="#roadmap" class="hover:text-white">Roadmap</a>
@@ -159,7 +148,6 @@
         <a href="#gallery" class="hover:text-white">Gallery</a>
         <a href="#faq" class="hover:text-white">FAQ</a>
       </nav>
-
       <div class="flex items-center gap-2">
         <a class="btn-ghost hidden sm:inline-flex" href="https://x.com/ton_fans" target="_blank" rel="noreferrer">X</a>
         <a class="btn-primary" href="#mint">Mint</a>
@@ -171,10 +159,9 @@
   <section class="relative overflow-hidden">
     <div class="absolute inset-0">
       <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-[900px] h-[900px] rounded-full blur-3xl opacity-40"
-           style="background:radial-gradient(circle at 30% 30%, rgba(0,193,255,.35), rgba(0,152,234,.18), rgba(0,0,0,0));"></div>
+           style="background: radial-gradient(circle at 30% 30%, rgba(0,193,255,.35), rgba(0,152,234,.18), rgba(0,0,0,0));"></div>
       <div class="absolute inset-0 bg-gradient-to-b from-white/[.02] via-transparent to-transparent"></div>
     </div>
-
     <div class="max-w-6xl mx-auto px-4 pt-14 pb-12 md:pt-20 md:pb-16 grid md:grid-cols-2 gap-10 items-center relative">
       <div>
         <div class="flex flex-wrap gap-2">
@@ -183,34 +170,27 @@
           <span class="pill">Big Diamond: 185 only</span>
           <span class="pill">Royalties: 5%</span>
         </div>
-
         <h1 class="mt-5 text-4xl md:text-6xl font-extrabold leading-[1.02]">
           TON coin aesthetics,<br />
           <span class="grad-text">minted on Solana.</span>
         </h1>
-
         <p class="mt-3 text-sm md:text-base text-white/90 font-semibold tracking-tight">One collection. Two ecosystems. One circle.</p>
-
         <p class="mt-5 text-lg md:text-xl muted max-w-xl">
           A coin collection inspired by <span class="font-semibold text-white">π</span> — infinite geometry for an open network.
           Four tiers. Clear pricing. Transparent addresses.
         </p>
-
         <div class="mt-7 flex flex-wrap gap-3">
           <a href="#mint" class="btn-primary px-6">Mint now</a>
           <a href="#tiers" class="btn-ghost px-6">View tiers</a>
         </div>
-
         <p class="mt-4 text-sm muted2">
           Not affiliated with TON Foundation or Telegram. Fan-made, design-inspired.
         </p>
       </div>
-
       <div class="relative">
         <div class="card soft-glow p-3">
           <img src="static/hero.png" alt="TON Fans coin" class="rounded-2xl w-full ring-1 ring-white/10" />
         </div>
-
         <div class="mt-4 grid grid-cols-2 gap-3">
           <div class="card p-4">
             <div class="text-xs uppercase tracking-[.2em] muted2">Chain</div>
@@ -244,49 +224,10 @@
           <p class="mt-2 muted">Crypto is math. This collection celebrates clean geometry.</p>
         </div>
         <div class="card p-5">
-          <div class="tier-badge">Connection</div>
-          <p class="mt-2 muted">Radial symmetry reads as "network energy" — instantly recognizable.</p>
+          <div class="tier-badge">Balance</div>
+          <p class="mt-2 muted">Four tiers, priced by clarity. A balanced offering.</p>
         </div>
       </div>
-    </div>
-  </section>
-
-
-  <!-- WHY SOLANA -->
-  <section id="why-solana" class="anchor max-w-6xl mx-auto px-4 pb-6">
-    <div class="card p-6 md:p-10">
-      <div class="text-xs uppercase tracking-[.2em] accent">Why Solana</div>
-      <h2 class="mt-2 text-2xl md:text-3xl font-extrabold">TON aesthetics × Solana rails.</h2>
-
-      <p class="mt-3 muted max-w-3xl">
-        TON Fans is a <span class="text-white font-semibold">TON-inspired</span> coin collection — but it's minted on
-        <span class="text-white font-semibold">Solana</span> on purpose.
-        Solana gives collectors the smoothest mint experience: fast confirmations, low fees, and battle-tested NFT tooling.
-      </p>
-
-      <div class="mt-4 flex flex-wrap gap-2">
-        <span class="pill">One culture. Multiple chains.</span>
-        <span class="pill">A bridge by aesthetics, not by contracts.</span>
-      </div>
-
-      <div class="mt-7 grid md:grid-cols-3 gap-4">
-        <div class="card p-5">
-          <div class="tier-badge">Speed</div>
-          <p class="mt-2 muted">Fast confirmations. Mint feels instant.</p>
-        </div>
-        <div class="card p-5">
-          <div class="tier-badge">Low fees</div>
-          <p class="mt-2 muted">Collector-friendly costs. More people can participate.</p>
-        </div>
-        <div class="card p-5">
-          <div class="tier-badge">NFT infra</div>
-          <p class="mt-2 muted">Wallets, explorers, marketplaces — Solana's rails are mature.</p>
-        </div>
-      </div>
-
-      <p class="mt-4 text-sm muted2">
-        Fan-made collection. Not affiliated with TON Foundation, Telegram, or The Open Network.
-      </p>
     </div>
   </section>
 
@@ -295,260 +236,43 @@
     <div class="flex items-end justify-between gap-6 flex-wrap">
       <div>
         <div class="text-xs uppercase tracking-[.2em] accent">Tiers</div>
-        <h2 class="mt-2 text-2xl md:text-4xl font-extrabold">Choose your tier.</h2>
-        <p class="mt-2 muted max-w-2xl">Simple pricing. Fixed supply. Clear visual rarity. Select a tier — the Mint module will use the matching guard group.</p>
-      </div>
-      <a href="#mint" class="btn-ghost">Go to Mint →</a>
-    </div>
-
-    <div class="mt-8 grid md:grid-cols-2 gap-6">
-      <!-- LittlGEN -->
-      <button class="text-left card p-6 tier-card" data-tier="littlegen">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <div class="text-sm uppercase tracking-widest muted2">LittlGEN</div>
-            <div class="mt-1 text-3xl font-extrabold">0.10 SOL</div>
-            <div class="mt-1 text-sm muted2">Supply: 500</div>
-          </div>
-          <img src="static/sample3.png" alt="LittlGEN sample" class="w-24 h-24 rounded-xl ring-1 ring-white/10 object-cover"/>
-        </div>
-        <ul class="mt-5 space-y-2 text-sm muted">
-          <li>Clean silver tone</li>
-          <li>Same core identity</li>
-          <li>Best entry tier</li>
-        </ul>
-        <div class="mt-5 flex items-center gap-2 text-sm">
-          <span class="tier-badge">Guard: littlegen</span>
-          <span class="muted2">Select to mint</span>
-        </div>
-      </button>
-
-      <!-- BigGEN -->
-      <button class="text-left card p-6 tier-card" data-tier="biggen">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <div class="text-sm uppercase tracking-widest muted2">BigGEN</div>
-            <div class="mt-1 text-3xl font-extrabold">0.125 SOL</div>
-            <div class="mt-1 text-sm muted2">Supply: 500</div>
-          </div>
-          <img src="static/sample1.png" alt="BigGEN sample" class="w-24 h-24 rounded-xl ring-1 ring-white/10 object-cover"/>
-        </div>
-        <ul class="mt-5 space-y-2 text-sm muted">
-          <li>Bigger presence</li>
-          <li>More "coin" feel</li>
-          <li>Collector favorite</li>
-        </ul>
-        <div class="mt-5 flex items-center gap-2 text-sm">
-          <span class="tier-badge">Guard: biggen</span>
-          <span class="muted2">Select to mint</span>
-        </div>
-      </button>
-
-      <!-- LittlGENdiamond -->
-      <button class="text-left card p-6 tier-card" data-tier="littlegen_diamond">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <div class="text-sm uppercase tracking-widest muted2">LittlGEN Diamond</div>
-            <div class="mt-1 text-3xl font-extrabold">0.15 SOL</div>
-            <div class="mt-1 text-sm muted2">Supply: 185</div>
-          </div>
-          <img src="static/sample4.png" alt="LittlGEN Diamond sample" class="w-24 h-24 rounded-xl ring-1 ring-white/10 object-cover"/>
-        </div>
-        <ul class="mt-5 space-y-2 text-sm muted">
-          <li>Crystal ring details</li>
-          <li>Premium center split</li>
-          <li>Visually distinct rarity</li>
-        </ul>
-        <div class="mt-5 flex items-center gap-2 text-sm">
-          <span class="tier-badge">Guard: littlegen_diamond</span>
-          <span class="muted2">Select to mint</span>
-        </div>
-      </button>
-
-      <!-- BigGENdiamond -->
-      <button class="text-left card p-6 tier-card" data-tier="biggen_diamond">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <div class="flex items-center gap-2">
-              <div class="text-sm uppercase tracking-widest muted2">BigGEN Diamond</div>
-              <span class="tier-badge">185 only</span>
-            </div>
-            <div class="mt-1 text-3xl font-extrabold">0.20 SOL</div>
-            <div class="mt-1 text-sm muted2">Supply: 185</div>
-          </div>
-          <img src="static/sample2.png" alt="BigGEN Diamond sample" class="w-24 h-24 rounded-xl ring-1 ring-white/10 object-cover"/>
-        </div>
-        <ul class="mt-5 space-y-2 text-sm muted">
-          <li>Flagship tier</li>
-          <li>Most premium look</li>
-          <li>Scarcity you can explain in one sentence</li>
-        </ul>
-        <div class="mt-5 flex items-center gap-2 text-sm">
-          <span class="tier-badge">Guard: biggen_diamond</span>
-          <span class="muted2">Select to mint</span>
-        </div>
-      </button>
-    </div>
-  </section>
-
-  <!-- ROADMAP -->
-  <section id="roadmap" class="anchor max-w-6xl mx-auto px-4 py-10">
-    <div class="card p-6 md:p-10">
-      <div class="text-xs uppercase tracking-[.2em] accent">Roadmap</div>
-      <h2 class="mt-2 text-2xl md:text-3xl font-extrabold">
-        Simple phases. Transparent milestones.
-      </h2>
-      <p class="mt-3 muted max-w-3xl">
-        We ship like engineers: clear steps, verifiable outcomes. No hype promises — just a clean path forward.
-      </p>
-
-      <div class="mt-7 grid gap-4">
-        <!-- Phase 1 -->
-        <div class="card p-5 md:p-6">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-              <span class="tier-badge">Phase 1</span>
-              <span class="pill">Solana</span>
-            </div>
-            <span class="pill">Now</span>
-          </div>
-
-          <h3 class="mt-3 text-lg md:text-xl font-bold">Launch TON Fans on Solana</h3>
-          <ul class="mt-3 space-y-2 muted">
-            <li>• 4 tiers with fixed supply and clear pricing</li>
-            <li>• Public addresses: Candy Machine, Treasury, Collection</li>
-            <li>• Smooth mint UX + post-mint verification</li>
-          </ul>
-        </div>
-
-        <!-- Phase 2 -->
-        <div class="card p-5 md:p-6">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-              <span class="tier-badge">Phase 2</span>
-              <span class="pill">Holders</span>
-            </div>
-            <span class="pill">After sell-out</span>
-          </div>
-
-          <h3 class="mt-3 text-lg md:text-xl font-bold">Holder snapshot & perks</h3>
-          <ul class="mt-3 space-y-2 muted">
-            <li>• On-chain holder snapshot (verifiable)</li>
-            <li>• "Proof-of-Holder" share card (optional)</li>
-            <li>• Community signal: what premium should look like</li>
-          </ul>
-        </div>
-
-        <!-- Phase 3 -->
-        <div class="card p-5 md:p-6">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-              <span class="tier-badge">Phase 3</span>
-              <span class="pill">TON</span>
-              <span class="pill">Premium</span>
-            </div>
-            <span class="pill">Planned</span>
-          </div>
-
-          <h3 class="mt-3 text-lg md:text-xl font-bold">Premium follow-up on TON (holder-only)</h3>
-          <p class="mt-3 muted max-w-3xl">
-            <span class="text-white font-semibold">If TON Fans fully sells out</span>, we plan a premium "Diamond-grade"
-            coin series on <span class="text-white font-semibold">TON</span>, distributed <span class="text-white font-semibold">free to current holders</span>
-            via snapshot-based claim.
-          </p>
-          <ul class="mt-3 space-y-2 muted">
-            <li>• Free distribution to holders (claim details after sell-out)</li>
-            <li>• Snapshot-based eligibility (transparent + verifiable)</li>
-            <li>• One culture. Multiple chains. — a bridge by aesthetics, not by contracts.</li>
-          </ul>
-
-          <p class="mt-4 text-sm muted2">
-            Roadmap items are intentions and may change based on feasibility and community feedback.
-          </p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-<!-- TRANSPARENCY -->
-  <section id="transparency" class="anchor max-w-6xl mx-auto px-4 py-10">
-    <div class="card p-6 md:p-10">
-      <div class="text-xs uppercase tracking-[.2em] accent">Transparency</div>
-      <h2 class="mt-2 text-2xl md:text-3xl font-extrabold">Show the data.</h2>
-      <p class="mt-3 muted max-w-3xl">Addresses and numbers will be pinned here the moment Candy Machine is deployed. No mystery boxes.</p>
-
-      <div class="mt-7 grid md:grid-cols-2 gap-4">
-        <div class="card p-5">
-          <div class="text-xs uppercase tracking-widest muted2">Total supply</div>
-          <div class="mt-1 text-2xl font-extrabold">1,270</div>
-          <div class="mt-2 text-sm muted2">Royalties: 5%</div>
-        </div>
-
-        <div class="card p-5">
-          <div class="text-xs uppercase tracking-widest muted2">Guard groups (prices)</div>
-          <!-- Mobile-first: keep the price pills readable (no overlap) -->
-          <div class="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-            <div class="pill flex items-center justify-between gap-2">
-              <span class="mono">littlegen</span>
-              <span class="mono muted2">0.10</span>
-            </div>
-            <div class="pill flex items-center justify-between gap-2">
-              <span class="mono">biggen</span>
-              <span class="mono muted2">0.125</span>
-            </div>
-            <div class="pill flex items-center justify-between gap-2">
-              <span class="mono">littlegen_diamond</span>
-              <span class="mono muted2">0.15</span>
-            </div>
-            <div class="pill flex items-center justify-between gap-2">
-              <span class="mono">biggen_diamond</span>
-              <span class="mono muted2">0.20</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card p-5">
-          <div class="text-xs uppercase tracking-widest muted2">Candy Machine</div>
-          <div class="mt-2 flex items-center gap-2">
-            <span id="cmAddress" class="mono text-sm text-white/90">TBD</span>
-            <button class="btn-ghost text-sm py-2 px-3" data-copy="cmAddress">Copy</button>
-          </div>
-          <div class="mt-2 text-xs muted2">Will link to Solana Explorer once deployed.</div>
-        </div>
-
-        <div class="card p-5">
-          <div class="text-xs uppercase tracking-widest muted2">Treasury wallet</div>
-          <div class="mt-2 flex items-center gap-2">
-            <span id="treasuryAddress" class="mono text-sm text-white/90">TBD</span>
-            <button class="btn-ghost text-sm py-2 px-3" data-copy="treasuryAddress">Copy</button>
-          </div>
-          <div class="mt-2 text-xs muted2">All mint proceeds go here.</div>
-        </div>
-      </div>
-
-      <div class="mt-6 flex flex-wrap items-center gap-3">
-        <a id="explorerLink" href="#" class="btn-ghost" target="_blank" rel="noreferrer">Explorer</a>
-        <a href="https://x.com/ton_fans" class="btn-ghost" target="_blank" rel="noreferrer">Updates on X</a>
-        <span class="text-xs muted2">Tip: pin this section in announcements for trust.</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- GALLERY -->
-  <section id="gallery" class="anchor max-w-6xl mx-auto px-4 py-10">
-    <div class="flex items-end justify-between gap-6 flex-wrap">
-      <div>
-        <div class="text-xs uppercase tracking-[.2em] accent">Gallery</div>
         <h2 class="mt-2 text-2xl md:text-4xl font-extrabold">Four tiers. One identity.</h2>
-        <p class="mt-2 muted max-w-2xl">A few real samples. Diamond tiers are visually obvious — that's the point.</p>
+        <p class="mt-2 muted max-w-2xl">From common to rare: LittlGEN, BigGEN, LittlGEN Diamond, BigGEN Diamond. No mystery.</p>
       </div>
     </div>
-
-    <div class="mt-8 grid md:grid-cols-4 gap-4">
-      <img class="rounded-2xl ring-1 ring-white/10 card" src="static/sample3.png" alt="LittlGEN sample" />
-      <img class="rounded-2xl ring-1 ring-white/10 card" src="static/sample1.png" alt="BigGEN sample" />
-      <img class="rounded-2xl ring-1 ring-white/10 card" src="static/sample4.png" alt="LittlGEN Diamond sample" />
-      <img class="rounded-2xl ring-1 ring-white/10 card" src="static/sample2.png" alt="BigGEN Diamond sample" />
+    <div class="mt-7 grid md:grid-cols-4 gap-4">
+      <a href="#mint" data-tier="littlegen" class="tier-card card p-4 flex flex-col gap-3" aria-selected="false">
+        <img src="static/tier1.png" alt="LittlGEN coin" class="rounded-lg object-cover border border-white/10 w-full" loading="lazy" decoding="async" />
+        <div>
+          <div class="font-semibold">LittlGEN</div>
+          <div class="mt-0.5 text-sm muted2">Price: ◎0.10</div>
+          <div class="mt-0.5 text-sm muted2">Supply: 560</div>
+        </div>
+      </a>
+      <a href="#mint" data-tier="biggen" class="tier-card card p-4 flex flex-col gap-3" aria-selected="false">
+        <img src="static/tier2.png" alt="BigGEN coin" class="rounded-lg object-cover border border-white/10 w-full" loading="lazy" decoding="async" />
+        <div>
+          <div class="font-semibold">BigGEN</div>
+          <div class="mt-0.5 text-sm muted2">Price: ◎0.125</div>
+          <div class="mt-0.5 text-sm muted2">Supply: 420</div>
+        </div>
+      </a>
+      <a href="#mint" data-tier="littlegen_diamond" class="tier-card card p-4 flex flex-col gap-3" aria-selected="false">
+        <img src="static/tier3.png" alt="LittlGEN Diamond coin" class="rounded-lg object-cover border border-white/10 w-full" loading="lazy" decoding="async" />
+        <div>
+          <div class="font-semibold">LittlGEN Diamond</div>
+          <div class="mt-0.5 text-sm muted2">Price: ◎0.15</div>
+          <div class="mt-0.5 text-sm muted2">Supply: 105</div>
+        </div>
+      </a>
+      <a href="#mint" data-tier="biggen_diamond" class="tier-card card p-4 flex flex-col gap-3" aria-selected="false">
+        <img src="static/tier4.png" alt="BigGEN Diamond coin" class="rounded-lg object-cover border border-white/10 w-full" loading="lazy" decoding="async" />
+        <div>
+          <div class="font-semibold">BigGEN Diamond</div>
+          <div class="mt-0.5 text-sm muted2">Price: ◎0.20</div>
+          <div class="mt-0.5 text-sm muted2">Supply: 185</div>
+        </div>
+      </a>
     </div>
   </section>
 
@@ -563,7 +287,7 @@
 
           <!-- Supply + Jobs progress (rendered by ui.js) -->
           <div id="supplyContainer" class="supply-container mt-4">
-            <!-- Эти элементы будут созданы динамически в ui.js, но мы добавляем их статически для надежности -->
+            <!-- These elements will be created dynamically in ui.js, but we include them statically for reliability -->
             <div id="supplyMintedPill" class="mb-1">Supply: —/— minted</div>
             <div id="supplyRemainPill" class="mb-2">Supply remaining: —</div>
             <div id="supplyProgressBar" class="mt-2"></div>
@@ -581,24 +305,16 @@
           <div class="selected-tier-card mt-7" aria-live="polite">
             <div class="text-xs uppercase tracking-[.2em] muted2">Selected tier</div>
             <div id="selectedTierLabel" class="mt-2 flex items-center justify-start gap-2 text-xl font-semibold">
-              <img
-                id="selectedTierThumb"
-                src=""
-                alt=""
-                class="hidden h-7 w-7 rounded-md border border-white/10 bg-white/5 object-cover"
-                loading="lazy"
-                decoding="async"
-              />
+              <img id="selectedTierThumb" src="" alt="" class="hidden h-7 w-7 rounded-md border border-white/10 bg-white/5 object-cover" loading="lazy" decoding="async" />
               <span id="selectedTierName">—</span>
             </div>
             <div id="selectedTierMeta" class="mt-2 monospace muted text-sm">guard: —</div>
-            <!-- ПРАВКА 1: заменили ready-hide на hidden -->
+            <!-- Ready micro-copy indicator (controlled via CSS classes) -->
             <p id="tierReady" class="ready-micro text-[11px] text-neutral-500 mt-2 hidden">Ready.</p>
           </div>
         </div>
-
         <div class="md:text-right">
-          <div class="mt-1 flex flex-wrap gap-2 justify-start md:justify-end">
+          <div class="mt-1 flex flex-wrap gap-2 justify-start md:justify-end pills">
             <div class="pill"><span class="muted">Network</span> <strong id="netPill">Mainnet</strong></div>
             <div class="pill"><span class="muted">Wallet</span> <strong id="walletPill">Not connected</strong></div>
             <div class="pill"><span class="muted">Ready</span> <strong id="readyPill" class="text-yellow-400">No</strong></div>
@@ -607,6 +323,7 @@
       </div>
 
       <div class="mt-8 grid md:grid-cols-3 gap-4">
+        <!-- Wallet connection card -->
         <div class="card p-5">
           <div class="text-xs uppercase tracking-widest muted2">Wallet</div>
           <div class="mt-2 flex items-center gap-2">
@@ -617,9 +334,10 @@
             <button id="connectBtn" class="btn-primary w-full md:w-auto">Connect Wallet</button>
             <button id="disconnectBtn" class="btn-ghost w-full md:w-auto hidden">Disconnect</button>
           </div>
-          <div class="mt-3 text-xs muted2">Phantom recommended. Solflare also works if it exposes window.solana.</div>
+          <div class="mt-3 text-xs muted2">Phantom recommended. Solflare also works if it exposes <code>window.solana</code>.</div>
         </div>
 
+        <!-- Quantity selector card -->
         <div class="card p-5">
           <div class="text-xs uppercase tracking-widest muted2">Quantity</div>
           <div class="mt-3 flex items-center gap-2">
@@ -630,18 +348,17 @@
           <div class="mt-2 text-xs muted2">Mint limit is enforced by Candy Guard (recommended: 3 per wallet).</div>
         </div>
 
+        <!-- Price display + Mint button card -->
         <div class="card p-5">
           <div class="text-xs uppercase tracking-widest muted2">Price</div>
           <div class="mt-2 text-3xl font-extrabold"><span id="price">0.10</span> SOL</div>
           <div class="mt-2 text-sm muted2">Estimated total: <span class="mono" id="total">0.10</span> SOL</div>
-
           <div class="mt-4 flex flex-wrap gap-2">
             <button id="mintBtn" class="btn-primary w-full" disabled style="opacity:.55; cursor:not-allowed;">
               Mint now
             </button>
             <a id="mintHelp" class="btn-ghost w-full text-center" href="#transparency">Set CM address →</a>
           </div>
-
           <div id="mintHint" class="mt-3 text-xs muted2">
             Status: waiting for Candy Machine deployment.
           </div>
@@ -656,7 +373,6 @@
           </svg>
           <span>Mint Successful!</span>
         </div>
-        
         <div class="flex flex-col gap-2">
           <a id="shareOnX" href="#" target="_blank" class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-black/50 border border-white/20 rounded-lg text-sm font-medium hover:bg-black/70 transition hidden">
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -664,7 +380,6 @@
             </svg>
             Share on X
           </a>
-          
           <div class="grid grid-cols-1 gap-2">
             <div class="text-xs uppercase tracking-widest muted2 mb-2">Recent Transactions</div>
             <div id="recentTxsContainer" class="space-y-2">
@@ -683,33 +398,27 @@
     <div class="card p-6 md:p-10">
       <div class="text-xs uppercase tracking-[.2em] accent">FAQ</div>
       <h2 class="mt-2 text-2xl md:text-3xl font-extrabold">Short answers. No fog.</h2>
-
       <div class="mt-7 grid md:grid-cols-2 gap-4">
         <div class="card p-5">
           <div class="font-semibold">Is this affiliated with TON Foundation / Telegram?</div>
           <p class="mt-2 muted text-sm">No. This is a fan-made collection inspired by TON aesthetics and the idea of open networks.</p>
         </div>
-
         <div class="card p-5">
           <div class="font-semibold">Where is the mint?</div>
           <p class="mt-2 muted text-sm">Solana (Metaplex Candy Machine v3).</p>
         </div>
-
         <div class="card p-5">
           <div class="font-semibold">Are the rays mathematically encoded as π digits?</div>
           <p class="mt-2 muted text-sm">The design is <span class="text-white font-semibold">inspired by π</span> as a symbol of infinity and precision — not a provable encoding claim.</p>
         </div>
-
         <div class="card p-5">
           <div class="font-semibold">What makes Diamond tiers different?</div>
           <p class="mt-2 muted text-sm">They have clearly visible premium details (crystal ring + center split). Big Diamond is the rarest tier (185 supply).</p>
         </div>
-
         <div class="card p-5">
           <div class="font-semibold">Royalties?</div>
           <p class="mt-2 muted text-sm">5% secondary royalties.</p>
         </div>
-
         <div class="card p-5">
           <div class="font-semibold">What's the best tier to mint?</div>
           <p class="mt-2 muted text-sm">If you want scarcity: Big Diamond. If you want entry: LittlGEN. BigGEN is a strong middle ground.</p>
@@ -726,7 +435,6 @@
         <div class="text-sm muted2">TON coin aesthetics, minted on Solana. Inspired by π.</div>
         <div class="mt-2 text-xs muted2">© <span id="year"></span> TON Fans. Fan-made. Not affiliated with TON Foundation or Telegram.</div>
       </div>
-
       <div class="flex flex-wrap items-center gap-3">
         <a class="btn-ghost" href="#tiers">Tiers</a>
         <a class="btn-ghost" href="#mint">Mint</a>
@@ -750,33 +458,28 @@
     </div>
   </div>
 
-<!-- ПРАВКА 2: обновили версии скриптов с v=18 на v=22 -->
-
-<script>
-  // Простой скрипт для копирования адресов
-  document.querySelectorAll('[data-copy]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const targetId = btn.getAttribute('data-copy');
-      const targetEl = document.getElementById(targetId);
-      if (targetEl) {
-        navigator.clipboard.writeText(targetEl.textContent)
-          .then(() => {
-            const originalText = btn.textContent;
-            btn.textContent = 'Copied!';
-            setTimeout(() => btn.textContent = originalText, 1500);
-          })
-          .catch(err => console.error('Copy failed:', err));
-      }
+  <script>
+    // Simple script to copy addresses on button click
+    document.querySelectorAll('[data-copy]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.getAttribute('data-copy');
+        const targetEl = document.getElementById(targetId);
+        if (targetEl) {
+          navigator.clipboard.writeText(targetEl.textContent)
+            .then(() => {
+              const originalText = btn.textContent;
+              btn.textContent = 'Copied!';
+              setTimeout(() => btn.textContent = originalText, 1500);
+            })
+            .catch(err => console.error('Copy failed:', err));
+        }
+      });
     });
-  });
-  
-  // Устанавливаем текущий год в футере
-  document.getElementById('year').textContent = new Date().getFullYear();
-</script>
+    // Set current year in footer
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
 
-
-<script type="module" src="assets/js/mint.js?v=23"></script>
-<script defer src="assets/js/ui.js?v=23"></script>
-
+  <script type="module" src="assets/js/mint.js?v=23"></script>
+  <script defer src="assets/js/ui.js?v=23"></script>
 </body>
 </html>
