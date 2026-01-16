@@ -1,14 +1,10 @@
-// assets/js/ui.js (v23) — TON Fans UI (paired with mint.js v23)
+// assets/js/ui.js (v23) — TON Fans UI for your index.html
 // Fixes:
-// - Selected tier / Ready / Price always sync
-// - Ready micro-copy uses ready-pop / ready-hide classes (components.css)
-// - Sticky "Change tier" works
-// - Auto-select saved tier (or first tier on first visit) with retry until mint API is ready
-// - Toasts from mint.js
-// - Supply UI always updates (even when mintedRemaining = null)
-// - Progress bar for "X/Y minted"
-// - View on Solscan + Copy tx buttons after successful mint
-
+// - Progress bar всегда виден (даже без данных)
+// - Supply pills всегда обновляются
+// - Tier сохраняется в localStorage при первом выборе
+// - PRO-LEVEL UX: кнопка Mint активна при remaining=0 (только toast)
+// - Топовая фича: список последних транзакций
 (() => {
   console.log("[TONFANS] ui.js v23 loaded");
 
@@ -42,36 +38,38 @@
     stickySelected: $("stickySelected"),
     stickyActionBtn: $("stickyActionBtn"),
     stickyChangeBtn: $("stickyChangeBtn"),
-
-    shareX: $("shareX"),
-    viewSolscan: $("viewSolscan"),
-    copyTx: $("copyTx"),
-    afterMintText: $("afterMintText"),
-
-    // Supply elements
-    supplyText: $("supplyText"),
-    supplyRemaining: $("supplyRemaining"),
-    supplyProgressBar: $("supplyProgressBar"),
-    supplyTotal: $("supplyTotal"),
+    
+    // После минта
+    afterMintSection: $("afterMintSection"),
+    shareOnX: $("shareOnX"),
+    recentTxsContainer: $("recentTxsContainer"),
+    copyTxBtn: $("copyTxBtn"),
   };
 
   const MAX_QTY = 3;
 
   const tierCards = () => Array.from(document.querySelectorAll(".tier-card[data-tier]"));
 
-  function setHidden(el, hidden){ if (el) el.classList.toggle("hidden", !!hidden); }
-  function setText(el, v){ if (el) el.textContent = v == null ? "" : String(v); }
+  function setHidden(el, hidden){ 
+    if (el) el.classList.toggle("hidden", !!hidden); 
+  }
+  
+  function setText(el, v){ 
+    if (el) el.textContent = v == null ? "" : String(v); 
+  }
 
   function fmtSol(n){
     if (n == null || !Number.isFinite(Number(n))) return "—";
     const x = Number(n);
+
     const milli = Math.round(x * 1000);
     const rounded3 = milli / 1000;
+
     if (milli % 10 === 0) return rounded3.toFixed(2);
     return rounded3.toFixed(3);
   }
 
-  // --- Toast (tiny, safe) ---
+  // --- Toast (popup) ---
   let toastTimer = null;
   function ensureToastEl(){
     let el = document.getElementById("tonfansToast");
@@ -149,62 +147,233 @@
     }
   }
 
-  function setReadyMicro(on){
-    if (!els.tierReady) return;
-    els.tierReady.classList.toggle("ready-pop", !!on);
-    els.tierReady.classList.toggle("ready-hide", !on);
-  }
-
+  // PRO-LEVEL UX: проверяем только базовые условия
   function canMint(s){
+    // ТОЛЬКО: подключен кошелёк, тир готов, не занят
     return !!s.walletConnected && !!s.ready && !s.busy;
   }
 
-  // Update Supply UI (always, even when mintedRemaining = null)
-  function updateSupplyUI(s){
-    if (!els.supplyText || !els.supplyRemaining || !els.supplyProgressBar || !els.supplyTotal) return;
-    
-    if (s.itemsAvailable != null && s.itemsRedeemed != null) {
-      const available = s.itemsAvailable;
-      const redeemed = s.itemsRedeemed;
-      const remaining = s.itemsRemaining != null ? s.itemsRemaining : Math.max(0, available - redeemed);
-      
-      els.supplyText.textContent = `${redeemed} / ${available} minted`;
-      els.supplyRemaining.textContent = `Remaining: ${remaining}`;
-      els.supplyTotal.textContent = available;
-      
-      const progress = available > 0 ? (redeemed / available) * 100 : 0;
-      els.supplyProgressBar.style.width = `${progress}%`;
-    } else {
-      els.supplyText.textContent = "— / — minted";
-      els.supplyRemaining.textContent = "Remaining: —";
-      els.supplyTotal.textContent = "—";
-      els.supplyProgressBar.style.width = "0%";
+  // extra UI lines
+  let qtyRemainingEl = null;
+  let mintedLineEl = null;
+
+  function ensureExtraEls(){
+    if (!qtyRemainingEl && els.qty && els.qty.parentElement) {
+      qtyRemainingEl = document.getElementById("qtyRemaining");
+      if (!qtyRemainingEl) {
+        qtyRemainingEl = document.createElement("div");
+        qtyRemainingEl.id = "qtyRemaining";
+        qtyRemainingEl.className = "text-xs muted2 ml-2";
+        qtyRemainingEl.style.whiteSpace = "nowrap";
+        els.qty.parentElement.appendChild(qtyRemainingEl);
+      }
+    }
+
+    if (!mintedLineEl && els.mintBtn) {
+      mintedLineEl = document.getElementById("mintedLine");
+      if (!mintedLineEl) {
+        mintedLineEl = document.createElement("div");
+        mintedLineEl.id = "mintedLine";
+        mintedLineEl.className = "mt-2 text-xs muted2";
+        mintedLineEl.textContent = "Minted: —/3";
+        els.mintBtn.insertAdjacentElement("afterend", mintedLineEl);
+      }
     }
   }
 
-  // Update After Mint UI
-  function updateAfterMintUI(s){
-    if (!els.viewSolscan || !els.copyTx || !els.afterMintText) return;
-    
-    const lastTx = s.recentTxSignatures && s.recentTxSignatures[0];
-    if (lastTx) {
-      els.viewSolscan.href = lastTx.explorerUrl;
-      setHidden(els.viewSolscan, false);
-      setHidden(els.copyTx, false);
-      setHidden(els.afterMintText, true);
-      
-      // Update Share X link
-      if (els.shareX) {
-        const shareText = `Just minted TON Fans on Solana! ${lastTx.explorerUrl}`;
-        els.shareX.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
+  // Supply UI elements
+  let supplyMintedPill = null;
+  let supplyRemainPill = null;
+  let supplyProgressBar = null;
+
+  function ensureSupplyElements(){
+    // Создаём элементы если их нет
+    if (!supplyMintedPill) {
+      supplyMintedPill = document.getElementById("supplyMintedPill");
+      if (!supplyMintedPill) {
+        const container = document.querySelector('.supply-container') || document.querySelector('.text-xs.text-neutral-400.mt-4');
+        if (container) {
+          supplyMintedPill = document.createElement("div");
+          supplyMintedPill.id = "supplyMintedPill";
+          supplyMintedPill.className = "mb-1";
+          supplyMintedPill.textContent = "Supply: —/— minted";
+          container.appendChild(supplyMintedPill);
+        }
       }
-    } else {
-      setHidden(els.viewSolscan, true);
-      setHidden(els.copyTx, true);
-      setHidden(els.afterMintText, false);
+    }
+    
+    if (!supplyRemainPill) {
+      supplyRemainPill = document.getElementById("supplyRemainPill");
+      if (!supplyRemainPill && supplyMintedPill) {
+        supplyRemainPill = document.createElement("div");
+        supplyRemainPill.id = "supplyRemainPill";
+        supplyRemainPill.className = "mb-2";
+        supplyRemainPill.textContent = "Supply remaining: —";
+        supplyMintedPill.parentNode.appendChild(supplyRemainPill);
+      }
+    }
+    
+    if (!supplyProgressBar) {
+      supplyProgressBar = document.getElementById("supplyProgressBar");
+      if (!supplyProgressBar && supplyRemainPill) {
+        supplyProgressBar = document.createElement("div");
+        supplyProgressBar.id = "supplyProgressBar";
+        supplyProgressBar.className = "mt-2";
+        supplyRemainPill.parentNode.appendChild(supplyProgressBar);
+      }
+    }
+  }
+
+  function updateSupplyUI(s){
+    ensureSupplyElements();
+    
+    // ВАЖНО: Всегда обновляем, даже если данные null
+    const total = s.itemsAvailable;
+    const redeemed = s.itemsRedeemed;
+    
+    if (supplyMintedPill) {
+      if (total != null && redeemed != null) {
+        supplyMintedPill.textContent = `Supply: ${redeemed}/${total} minted`;
+        supplyMintedPill.style.opacity = "1";
+      } else {
+        supplyMintedPill.textContent = `Supply: —/— minted`;
+        supplyMintedPill.style.opacity = "0.7";
+      }
+    }
+    
+    if (supplyRemainPill) {
+      if (total != null && redeemed != null) {
+        const remaining = s.itemsRemaining != null ? s.itemsRemaining : Math.max(0, total - redeemed);
+        supplyRemainPill.textContent = `Supply remaining: ${remaining}`;
+        supplyRemainPill.style.opacity = "1";
+      } else {
+        supplyRemainPill.textContent = `Supply remaining: —`;
+        supplyRemainPill.style.opacity = "0.7";
+      }
+    }
+    
+    if (supplyProgressBar) {
+      if (total != null && redeemed != null && total > 0) {
+        const pct = Math.max(0, Math.min(100, (redeemed / total) * 100));
+        
+        // Создаём прогресс-бар если его нет
+        let barFill = supplyProgressBar.querySelector('.progress-bar-fill');
+        let barText = supplyProgressBar.querySelector('.progress-bar-text');
+        
+        if (!barFill) {
+          // Создаём текст
+          barText = document.createElement("div");
+          barText.className = "progress-bar-text text-xs text-neutral-500 mb-1 flex justify-between";
+          barText.innerHTML = `<span>Progress</span><span>${redeemed} / ${total}</span>`;
+          supplyProgressBar.appendChild(barText);
+          
+          // Создаём контейнер для полоски
+          const barContainer = document.createElement("div");
+          barContainer.style.height = "6px";
+          barContainer.style.borderRadius = "999px";
+          barContainer.style.background = "rgba(255,255,255,.10)";
+          barContainer.style.overflow = "hidden";
+          
+          barFill = document.createElement("div");
+          barFill.className = "progress-bar-fill";
+          barFill.style.height = "100%";
+          barFill.style.width = "0%";
+          barFill.style.borderRadius = "999px";
+          barFill.style.background = "linear-gradient(90deg, rgba(120,255,180,0.9) 0%, rgba(100,200,255,0.9) 100%)";
+          barFill.style.transition = "width .35s ease";
+          
+          barContainer.appendChild(barFill);
+          supplyProgressBar.appendChild(barContainer);
+        }
+        
+        // Обновляем
+        if (barFill) barFill.style.width = `${pct}%`;
+        if (barText) barText.innerHTML = `<span>Progress</span><span>${redeemed} / ${total}</span>`;
+        
+        supplyProgressBar.style.display = "block";
+      } else {
+        // Показываем скелетон
+        supplyProgressBar.innerHTML = `
+          <div class="text-xs text-neutral-500 mb-1 flex justify-between">
+            <span>Progress</span>
+            <span>— / —</span>
+          </div>
+          <div style="height:6px; border-radius:999px; background:rgba(255,255,255,.05); overflow:hidden;">
+            <div style="height:100%; width:0%; border-radius:999px; background:rgba(255,255,255,.1);"></div>
+          </div>
+        `;
+        supplyProgressBar.style.display = "block";
+      }
+    }
+  }
+
+  function syncTotals(){
+    const s = window.__TONFANS_STATE__ || {};
+    const currentQty = getQty();
+    
+    if (els.price) setText(els.price, fmtSol(s.priceSol));
+    
+    const total = (s.priceSol == null) ? null : (Number(s.priceSol) * currentQty);
+    if (els.total) setText(els.total, fmtSol(total));
+  }
+
+  // ТОПОВАЯ ФИЧА: отображаем последние транзакции
+  function updateRecentTransactions(txs){
+    if (!els.recentTxsContainer) return;
+    
+    if (!txs || txs.length === 0) {
+      els.recentTxsContainer.innerHTML = `
+        <div class="text-xs text-neutral-500 italic">
+          No recent transactions
+        </div>
+      `;
+      return;
+    }
+    
+    let html = '<div class="space-y-2">';
+    
+    txs.forEach((tx, idx) => {
+      html += `
+        <div class="flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2">
+            <span class="text-neutral-400">Tx ${idx + 1}</span>
+            <span class="font-mono text-neutral-300">${tx.shortSig}</span>
+          </div>
+          <div class="flex gap-2">
+            <a href="${tx.explorerUrl}" target="_blank" 
+               class="px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded text-[10px] font-medium transition">
+              View
+            </a>
+            <button onclick="window.TONFANS?.mint?.copyTxSignature('${tx.signature}')"
+                    class="px-2 py-1 bg-white/10 hover:bg-white/20 border border-white/20 rounded text-[10px] font-medium transition">
+              Copy
+            </button>
+          </div>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    els.recentTxsContainer.innerHTML = html;
+  }
+
+  function updateAfterMintUI(s){
+    if (!els.afterMintSection) return;
+    
+    const show = s.recentTxSignatures && s.recentTxSignatures.length > 0;
+    setHidden(els.afterMintSection, !show);
+    
+    if (show) {
+      // Обновляем список транзакций
+      updateRecentTransactions(s.recentTxSignatures);
       
-      if (els.shareX) {
-        els.shareX.href = "https://x.com/ton_fans";
+      // Обновляем Share on X
+      if (els.shareOnX && s.recentTxSignatures[0]) {
+        const tierName = s.tierLabel || "TON Fans NFT";
+        const txSig = s.recentTxSignatures[0].signature;
+        const shareText = `Just minted ${tierName} on @ton_fans! https://solscan.io/tx/${txSig}?cluster=devnet`;
+        els.shareOnX.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
+        els.shareOnX.target = "_blank";
       }
     }
   }
@@ -212,77 +381,108 @@
   function render(s){
     window.__TONFANS_STATE__ = s;
 
-    // top pills
+    ensureExtraEls();
+    
+    // ВСЕГДА обновляем supply UI
+    updateSupplyUI(s);
+
+    // minted / remaining
+    const minted = s.mintedCount !== null ? Number(s.mintedCount) : null;
+    const remaining = s.mintedRemaining !== null ? Number(s.mintedRemaining) : null;
+
+    if (mintedLineEl) mintedLineEl.textContent = `Minted: ${(minted == null ? "—" : minted)}/3`;
+    if (qtyRemainingEl) qtyRemainingEl.textContent = `Remaining: ${(remaining == null ? "—" : remaining)}/3`;
+
+    syncTotals();
+
+    // Top pills
     if (els.netPill) setText(els.netPill, s.cluster === "devnet" ? "Devnet" : (s.cluster || "—"));
     if (els.walletPill) setText(els.walletPill, s.walletConnected ? (s.walletShort || "Connected") : "Not connected");
-    if (els.readyPill) {
-      setText(els.readyPill, s.ready ? "Yes" : "No");
-      // quick color hint (works with Tailwind in HTML)
-      els.readyPill.classList.toggle("text-yellow-400", !s.ready);
-      els.readyPill.classList.toggle("text-emerald-300", !!s.ready);
-    }
+    if (els.readyPill) setText(els.readyPill, s.ready ? "Yes" : "No");
 
-    // wallet card
+    // Wallet card
     setText(els.walletStatus, s.walletConnected ? "Connected" : "Not connected");
-    if (els.walletAddr) {
-      setText(els.walletAddr, s.walletConnected ? (s.walletShort || "") : "");
-      setHidden(els.walletAddr, !s.walletConnected);
-    }
+    setText(els.walletAddr, s.walletConnected ? (s.walletShort || "") : "—");
     setHidden(els.connectBtn, !!s.walletConnected);
     setHidden(els.disconnectBtn, !s.walletConnected);
 
-    // selected tier
+    // Selected tier
     setText(els.selectedTierName, s.tierLabel || "—");
     setText(
       els.selectedTierMeta,
       s.guardPk
         ? `guard: ${String(s.guardPk).slice(0,4)}…${String(s.guardPk).slice(-4)}${s.guardGroup ? ` (${s.guardGroup})` : ""}`
         : "guard: —"
-    );
-    setReadyMicro(!!s.ready);
+    );    // Ready micro-copy (components.css): use ready-pop / ready-hide
+    if (els.tierReady) {
+      // ensure element participates in transitions
+      els.tierReady.classList.remove('hidden');
+      els.tierReady.classList.remove('ready-pop','ready-hide');
+      if (s.ready) {
+        els.tierReady.classList.add('ready-pop');
+      } else {
+        els.tierReady.classList.add('ready-hide');
+      }
+    }
     highlightTier(s.tierRaw);
 
-    // sticky bar
+    // Sticky bar
     if (els.stickyMintBar) {
       const show = !!s.tierRaw;
       setHidden(els.stickyMintBar, !show);
-      document.body.classList.toggle("has-sticky", show);
       if (show) setText(els.stickySelected, s.tierLabel || "—");
     }
+    // Quantity buttons - четкая логика блокировки
+    const currentQty = getQty();
 
-    // quantity
-    setQty(getQty());
+    // Определяем, есть ли вообще возможность минтить
+    const canMintMore = remaining === null || remaining > 0;
+
     if (els.qtyMinus) {
-      const dis = getQty() <= 1;
+      const atMin = currentQty <= 1;
+      // Минус отключаем если: достигнут минимум ИЛИ нельзя минтить вообще
+      const dis = atMin || !canMintMore;
       els.qtyMinus.disabled = dis;
-      els.qtyMinus.style.opacity = dis ? ".55" : "1";
-      els.qtyMinus.style.cursor = dis ? "not-allowed" : "pointer";
+      els.qtyMinus.style.opacity = dis ? '.55' : '1';
+      els.qtyMinus.style.cursor = dis ? 'not-allowed' : 'pointer';
     }
+
     if (els.qtyPlus) {
-      const dis = getQty() >= MAX_QTY;
+      const atMax = currentQty >= MAX_QTY;
+      // Плюс отключаем если: достигнут максимум ИЛИ нельзя минтить вообще
+      const dis = atMax || !canMintMore;
       els.qtyPlus.disabled = dis;
-      els.qtyPlus.style.opacity = dis ? ".55" : "1";
-      els.qtyPlus.style.cursor = dis ? "not-allowed" : "pointer";
+      els.qtyPlus.style.opacity = dis ? '.55' : '1';
+      els.qtyPlus.style.cursor = dis ? 'not-allowed' : 'pointer';
+
+      // Сохраняем данные для обработчика
+      els.qtyPlus.dataset.canMintMore = String(canMintMore);
+      els.qtyPlus.dataset.remaining = String(remaining);
     }
 
-    // price + total
-    setText(els.price, fmtSol(s.priceSol));
-    const total = (s.priceSol == null) ? null : (Number(s.priceSol) * getQty());
-    setText(els.total, fmtSol(total));
-
-    // Supply UI (ALWAYS updates)
-    updateSupplyUI(s);
-
-    // mint button
+    // PRO-LEVEL UX: кнопка Mint активна даже при remaining=0
     if (els.mintBtn){
       const ok = canMint(s);
+      const limitReached = remaining === 0;
+      
+      // Кнопка всегда enabled если базовые условия выполнены
       els.mintBtn.disabled = !ok;
-      els.mintBtn.style.opacity = ok ? "1" : ".55";
+      
+      // Стилизация для лимита
+      if (limitReached) {
+        els.mintBtn.style.opacity = "0.7";
+        els.mintBtn.style.cursor = "pointer";
+        els.mintBtn.title = "Mint limit reached (click for info)";
+      } else {
+        els.mintBtn.style.opacity = ok ? "1" : ".55";
+        els.mintBtn.style.cursor = ok ? "pointer" : "not-allowed";
+        els.mintBtn.title = "";
+      }
+      
       els.mintBtn.textContent = s.busy ? (s.busyLabel || "Working…") : "Mint now";
-      els.mintBtn.style.cursor = ok ? "pointer" : "not-allowed";
     }
 
-    // sticky action
+    // Sticky action button
     if (els.stickyActionBtn){
       if (!s.walletConnected) {
         els.stickyActionBtn.textContent = "Connect";
@@ -296,43 +496,37 @@
       }
     }
 
-    // hint
+    // Hint
     if (els.mintHint){
       const prefix = s.hintKind === "error" ? "Error: " : "";
       setText(els.mintHint, `${prefix}${s.hint || ""}`.trim());
     }
 
-    // help link
+    // Help link
     if (els.mintHelp){
       els.mintHelp.textContent = s.tierRaw ? "Change tier →" : "Set CM address →";
       els.mintHelp.href = s.tierRaw ? "#tiers" : "#transparency";
     }
 
-    // After mint UI
+    // После минта
     updateAfterMintUI(s);
   }
 
   function mintApi(){ return window.TONFANS?.mint; }
 
-  function setTierWhenReady(tierRaw, tries = 0){
-    const api = mintApi();
-    if (api?.setTier) {
-      api.setTier(tierRaw).catch(()=>{});
-      return;
-    }
-    if (tries >= 60) return; // ~6s max
-    setTimeout(() => setTierWhenReady(tierRaw, tries + 1), 100);
-  }
-
   async function onTier(card){
     const tierRaw = card.getAttribute("data-tier");
     if (!tierRaw) return;
-
+    
     highlightTier(tierRaw);
-    try { localStorage.setItem("tonfans:tier", tierRaw); } catch {}
-
+    
+    // ВАЖНО: Сохраняем tier ДАЖЕ при первом выборе
+    try {
+      localStorage.setItem("tonfans:tier", tierRaw);
+    } catch {}
+    
     if (els.stickyMintBar) setHidden(els.stickyMintBar, false);
-    setTierWhenReady(tierRaw);
+    await mintApi()?.setTier?.(tierRaw);
   }
 
   function bind(){
@@ -360,12 +554,25 @@
       e.preventDefault();
       e.stopPropagation();
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-      if (els.qtyPlus.disabled) return;
+
+      if (els.qtyPlus.disabled) {
+        const s = window.__TONFANS_STATE__ || {};
+        const rem = s.mintedRemaining;
+        if (rem === 0) {
+          toast("❌ Mint limit reached (3 per wallet)", "error");
+        } else if (rem != null && rem < MAX_QTY) {
+          toast(`📊 Only ${rem}/3 remaining.`, "info");
+        } else if (!els.qtyPlus.dataset.canMintMore || els.qtyPlus.dataset.canMintMore === "false") {
+          toast("⚠️ Cannot increase quantity", "error");
+        }
+        return;
+      }
+
       setQty(getQty() + 1);
       render(window.__TONFANS_STATE__ || {});
     }, { capture: true });
 
-    // input support (if you later switch qty element to input)
+    // qty input
     if (els.qty && ("value" in els.qty)) els.qty.addEventListener("input", (e) => {
       e.stopPropagation();
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
@@ -383,24 +590,55 @@
       mintApi()?.toggleConnect?.().catch(()=>{});
     });
 
-    // mint main
-    if (els.mintBtn) els.mintBtn.addEventListener("click", (e) => {
+    // PRO-LEVEL UX: обработка клика на Mint
+    if (els.mintBtn) els.mintBtn.addEventListener("click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-      mintApi()?.mintNow?.(getQty()).catch(()=>{});
+      
+      const s = window.__TONFANS_STATE__ || {};
+      const remaining = s.mintedRemaining;
+      
+      // Если лимит исчерпан, показываем toast и НЕ вызываем mintNow
+      if (remaining === 0) {
+        toast("Mint limit reached (3 per wallet). No transaction will be sent.", "info");
+        return;
+      }
+      
+      try {
+        await mintApi()?.mintNow?.(getQty());
+      } catch (err) {
+        // Error handled by mint.js toast
+      }
     }, { capture: true });
 
-    // sticky action
-    if (els.stickyActionBtn) els.stickyActionBtn.addEventListener("click", (e) => {
+    // sticky action button
+    if (els.stickyActionBtn) els.stickyActionBtn.addEventListener("click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      
       const s = window.__TONFANS_STATE__ || {};
       const api = mintApi();
       if (!api) return;
-      if (!s.walletConnected) api.toggleConnect?.().catch(()=>{});
-      else api.mintNow?.(getQty()).catch(()=>{});
+
+      try {
+        if (!s.walletConnected) {
+          await api.toggleConnect?.();
+          return;
+        }
+        
+        // PRO-LEVEL UX: проверка лимита для sticky кнопки
+        const remaining = s.mintedRemaining;
+        if (remaining === 0) {
+          toast("Mint limit reached (3 per wallet). No transaction will be sent.", "info");
+          return;
+        }
+        
+        await api.mintNow?.(getQty());
+      } catch (err) {
+        // Error handled by mint.js toast
+      }
     }, { capture: true });
 
     // sticky change tier
@@ -410,19 +648,7 @@
       try { document.getElementById("tiers")?.scrollIntoView({ behavior: "smooth" }); } catch {}
     });
 
-    // Copy tx button
-    if (els.copyTx) {
-      els.copyTx.addEventListener("click", (e) => {
-        e.preventDefault();
-        const s = window.__TONFANS_STATE__ || {};
-        const lastTx = s.recentTxSignatures?.[0];
-        if (lastTx) {
-          window.TONFANS?.mint?.copyTxSignature?.(lastTx.signature);
-        }
-      });
-    }
-
-    // events
+    // События
     window.addEventListener("tonfans:toast", (e) => {
       try { toast(e?.detail?.message, e?.detail?.kind || "info"); } catch {}
     });
@@ -437,31 +663,73 @@
       } catch {}
     });
 
-    window.addEventListener("tonfans:state", (e) => {
-      try { render(e.detail); } catch (err) { console.error("[TONFANS] render error:", err); }
-    });
-
-    // Supply updates from mint.js
     window.addEventListener("tonfans:supply", (e) => {
       try {
         const s = window.__TONFANS_STATE__ || {};
-        if (e.detail) {
-          s.itemsAvailable = e.detail.itemsAvailable;
-          s.itemsRedeemed = e.detail.itemsRedeemed;
-          s.itemsRemaining = e.detail.itemsRemaining;
-          updateSupplyUI(s);
-        }
+        const supplyData = e.detail;
+        
+        s.itemsAvailable = supplyData.itemsAvailable;
+        s.itemsRedeemed = supplyData.itemsRedeemed;
+        s.itemsRemaining = supplyData.itemsRemaining;
+        
+        updateSupplyUI(s);
       } catch (err) {
-        console.error("[TONFANS] supply update error:", err);
+        console.error("[TONFANS] Error updating supply:", err);
+      }
+    });
+
+    window.addEventListener("tonfans:state", (e) => {
+      try {
+        render(e.detail);
+      } catch (err) {
+        console.error("[TONFANS] Error rendering state:", err);
       }
     });
   }
 
+  // ВАЖНО: Безопасная инициализация с автоматическим выбором тира
+  function safeInitial(){
+    // 1) Determine tier (saved -> first card)
+    let savedTier = null;
+    try { savedTier = localStorage.getItem("tonfans:tier"); } catch {}
+
+    let useTier = savedTier;
+    const cards = tierCards();
+    if (!useTier && cards.length > 0) {
+      useTier = cards[0].getAttribute("data-tier");
+      try { if (useTier) localStorage.setItem("tonfans:tier", useTier); } catch {}
+    }
+
+    if (useTier) {
+      highlightTier(useTier);
+
+      // 2) Call mint API when it becomes available (mint.js may load after ui.js)
+      const start = Date.now();
+      const tryBind = () => {
+        const api = mintApi();
+        if (api && typeof api.setTier === 'function') {
+          api.setTier(useTier).catch(()=>{});
+          return true;
+        }
+        // retry for up to ~5s
+        if (Date.now() - start < 5000) {
+          setTimeout(tryBind, 120);
+        }
+        return false;
+      };
+      setTimeout(tryBind, 0);
+    }
+
+    // default qty
+    setQty(1);
+  }
+
   function boot(){
     bind();
-
+    safeInitial(); // ВАЖНО: вызываем ДО render
+    
     const init = {
-      cluster: "devnet",
+      cluster: (new URLSearchParams(location.search).get("cluster") || "devnet"),
       walletConnected: false,
       walletShort: null,
       tierRaw: null,
@@ -469,31 +737,17 @@
       ready: false,
       priceSol: null,
       busy: false,
-      hint: "Select a tier.",
+      hint: "",
       hintKind: "info",
+      mintedCount: null,
+      mintedRemaining: null,
       itemsAvailable: null,
       itemsRedeemed: null,
       itemsRemaining: null,
       recentTxSignatures: [],
     };
-
     window.__TONFANS_STATE__ = init;
     render(init);
-
-    // Auto tier select (saved or first card) — robust retry until mint.js is ready
-    let tier = null;
-    try { tier = localStorage.getItem("tonfans:tier"); } catch {}
-    if (!tier) {
-      const first = tierCards()[0];
-      tier = first?.getAttribute("data-tier") || null;
-      if (tier) { try { localStorage.setItem("tonfans:tier", tier); } catch {} }
-    }
-
-    if (tier) {
-      highlightTier(tier);
-      if (els.stickyMintBar) setHidden(els.stickyMintBar, false);
-      setTierWhenReady(tier);
-    }
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
