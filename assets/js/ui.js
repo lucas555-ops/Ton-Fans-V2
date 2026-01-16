@@ -651,6 +651,158 @@
     return false;
   }
 
+  // ---------------------------------------------------------------------------
+  // Payment Preview (Apple-grade) — shown BEFORE every mint.
+  // Wallets may show only network fee because SOL payment happens as an inner-instruction
+  // inside Candy Guard (mintV2). We show a clear preview here.
+  // ---------------------------------------------------------------------------
+  let __paymentModal = null;
+
+  function _fmtSol(x){
+    const n = Number(x);
+    if (!isFinite(n)) return "—";
+    // Trim trailing zeros
+    return n.toFixed(6).replace(/0+$/,'').replace(/\.$/,'');
+  }
+
+  function _shortPk(pk){
+    if (!pk) return "—";
+    const s = String(pk);
+    if (s.length <= 10) return s;
+    return s.slice(0,4) + "…" + s.slice(-4);
+  }
+
+  function getPaymentModal(){
+    if (__paymentModal) return __paymentModal;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'paymentPreviewOverlay';
+    overlay.className = 'fixed inset-0 z-[1000] hidden items-center justify-center p-4';
+    overlay.innerHTML = `
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+      <div class="relative w-full max-w-md rounded-2xl border border-white/10 bg-[#141821] shadow-2xl">
+        <div class="p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-xs uppercase tracking-widest text-white/60">Payment preview</div>
+              <div class="mt-1 text-xl font-semibold text-white">Confirm mint</div>
+            </div>
+            <button id="ppClose" class="h-9 w-9 rounded-full bg-white/5 hover:bg-white/10 text-white/70" aria-label="Close">×</button>
+          </div>
+
+          <div class="mt-4 space-y-2 text-sm">
+            <div class="flex items-center justify-between"><span class="text-white/60">Tier</span><span id="ppTier" class="text-white font-medium">—</span></div>
+            <div class="flex items-center justify-between"><span class="text-white/60">Quantity</span><span id="ppQty" class="text-white font-medium">—</span></div>
+            <div class="flex items-center justify-between"><span class="text-white/60">Price each</span><span id="ppPrice" class="text-white font-medium">—</span></div>
+            <div class="flex items-center justify-between"><span class="text-white/60">Total</span><span id="ppTotal" class="text-white font-semibold">—</span></div>
+            <div class="flex items-center justify-between"><span class="text-white/60">To (treasury)</span><span id="ppDest" class="text-white font-medium">—</span></div>
+            <div class="flex items-center justify-between"><span class="text-white/60">Network</span><span id="ppNet" class="text-white/90">—</span></div>
+          </div>
+
+          <div id="ppWarn" class="mt-4 hidden rounded-xl border border-amber-400/20 bg-amber-400/10 p-3 text-xs text-amber-100"></div>
+          <div class="mt-3 text-xs text-white/50">
+            Note: some wallets show only the network fee in the approval screen.
+            The payment is executed inside Candy Guard during mint.
+          </div>
+
+          <div class="mt-5 flex gap-3">
+            <button id="ppCancel" class="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white/90 hover:bg-white/10">Cancel</button>
+            <button id="ppOk" class="flex-1 rounded-xl bg-[#0ea5e9] px-4 py-3 text-sm font-semibold text-black hover:opacity-95">Confirm</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const q = (id) => overlay.querySelector(id);
+    const elTier = q('#ppTier');
+    const elQty = q('#ppQty');
+    const elPrice = q('#ppPrice');
+    const elTotal = q('#ppTotal');
+    const elDest = q('#ppDest');
+    const elNet = q('#ppNet');
+    const elWarn = q('#ppWarn');
+
+    let resolver = null;
+
+    const close = (val) => {
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+      document.body.style.overflow = '';
+      if (resolver) { const r = resolver; resolver = null; r(Boolean(val)); }
+    };
+
+    q('#ppClose').addEventListener('click', () => close(false));
+    q('#ppCancel').addEventListener('click', () => close(false));
+    q('#ppOk').addEventListener('click', () => close(true));
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay.firstElementChild) close(false);
+    });
+    window.addEventListener('keydown', (e) => {
+      if (!overlay.classList.contains('hidden') && e.key === 'Escape') close(false);
+    });
+
+    __paymentModal = {
+      open: (data) => {
+        elTier.textContent = data.tier || '—';
+        elQty.textContent = String(data.qty ?? '—');
+        elPrice.textContent = (data.price != null ? _fmtSol(data.price) + ' SOL' : '—');
+        elTotal.textContent = (data.total != null ? _fmtSol(data.total) + ' SOL' : '—');
+        elDest.textContent = data.dest ? _shortPk(data.dest) : '—';
+        elNet.textContent = data.net || '—';
+
+        if (data.warning) {
+          elWarn.textContent = data.warning;
+          elWarn.classList.remove('hidden');
+        } else {
+          elWarn.classList.add('hidden');
+          elWarn.textContent = '';
+        }
+
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+
+        return new Promise((resolve) => { resolver = resolve; });
+      },
+      close,
+    };
+
+    return __paymentModal;
+  }
+
+  async function paymentPreviewBeforeMint(ss, qty){
+    const s = ss || {};
+    const price = (s.priceSol != null) ? Number(s.priceSol) : null;
+    const total = (price != null) ? price * Number(qty || 1) : null;
+    const tier = s.tierKey || s.tierRaw || '—';
+    const dest = s.solDestination || s.treasuryAddress || s.destination || '';
+    const net = (s.cluster ? String(s.cluster).toUpperCase() : 'DEVNET');
+
+    let warning = '';
+    // If limit is verified and reached, no preview needed (UI will block).
+    if (s.mintedRemaining === null) {
+      warning = "Mint limit couldn't be verified right now (RPC/SDK). If this wallet already reached the limit, you may pay only the network fee.";
+    }
+
+    try {
+      const pm = getPaymentModal();
+      return await pm.open({ tier, qty, price, total, dest, net, warning: warning || null });
+    } catch (e) {
+      // Fallback to native confirm
+      const lines = [
+        `Tier: ${tier}`,
+        `Qty: ${qty}`,
+        `Price: ${(price != null ? _fmtSol(price) : '—')} SOL`,
+        `Total: ${(total != null ? _fmtSol(total) : '—')} SOL`,
+        `To: ${_shortPk(dest)}`,
+      ];
+      if (warning) lines.push('', warning);
+      return window.confirm(lines.join('\n'));
+    }
+  }
+
   async function onTier(card){
     const tierRaw = card.getAttribute("data-tier");
     if (!tierRaw) return;
@@ -766,6 +918,9 @@
       }
 
       try {
+        const okPreview = await showPaymentPreview(window.__TONFANS_STATE__ || {}, getQty());
+        if (!okPreview) return;
+
         await api.mintNow?.(getQty());
       } catch (err) {
         // errors are surfaced via mint.js toast/hint
@@ -798,6 +953,9 @@
           toast(`Mint limit reached (${lim} per wallet). No transaction will be sent.`, "info");
           return;
         }
+
+        const okPreview = await showPaymentPreview(window.__TONFANS_STATE__ || {}, getQty());
+        if (!okPreview) return;
 
         await api.mintNow?.(getQty());
       } catch (err) {
