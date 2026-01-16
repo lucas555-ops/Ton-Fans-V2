@@ -94,91 +94,96 @@
       padding:.25rem .55rem;border-radius:9999px;font-size:.75rem;font-weight:700;
     }
   
-/* Subtle status dots on pills (Apple-level) */
-.pills .pill{ position: relative; }
-.pills .pill.connected::before{
-  content: "";
-  width: 6px; height: 6px;
-  border-radius: 999px;
-  display: inline-block;
-  margin-right: 8px;
-  background: var(--good);
-  box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.35);
-  animation: dotPulse 1.4s infinite;
-  transform: translateY(-0.5px);
-}
-@keyframes dotPulse{
-  0%{ box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.28); }
-  70%{ box-shadow: 0 0 0 8px rgba(46, 204, 113, 0.0); }
-  100%{ box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.0); }
-}
-/* extra subtle tint for Ready=Yes */
-.pills .pill.ready-yes{
-  border-color: rgba(46, 204, 113, 0.35);
-  background: rgba(46, 204, 113, 0.06);
-}
-
-/* Sticky mint bar */
-.sticky-mint {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 95%;
-  max-width: 600px;
-  background: rgba(15, 15, 15, 0.95);
-  backdrop-filter: blur(12px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
-  padding: 14px 18px;
-  z-index: 1000;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 193, 255, 0.08);
-  display: none;
-}
-
-.sticky-mint__inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.sticky-mint__meta {
-  flex: 1;
-  min-width: 0;
-}
-
-.sticky-mint__label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
-  margin-bottom: 2px;
-}
-
-.sticky-mint__value {
-  font-weight: 700;
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.95);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sticky-mint__actions {
-  display: flex;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.btn-sm {
-  padding: 8px 16px;
-  font-size: 14px;
-  border-radius: 12px;
-}
-
-.has-sticky {
-  padding-bottom: 90px;
-}
-</style>
+    /* Subtle status dots on pills (Apple-level) */
+    .pills .pill{ position: relative; }
+    .pills .pill.connected::before{
+      content: "";
+      width: 6px; height: 6px;
+      border-radius: 999px;
+      display: inline-block;
+      margin-right: 8px;
+      background: var(--good);
+      box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.35);
+      animation: dotPulse 1.4s infinite;
+      transform: translateY(-0.5px);
+    }
+    @keyframes dotPulse{
+      0%{ box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.28); }
+      70%{ box-shadow: 0 0 0 8px rgba(46, 204, 113, 0.0); }
+      100%{ box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.0); }
+    }
+    /* extra subtle tint for Ready=Yes */
+    .pills .pill.ready-yes{
+      border-color: rgba(46, 204, 113, 0.35);
+      background: rgba(46, 204, 113, 0.06);
+    }
+    
+    /* Sticky mint bar */
+    .sticky-mint {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      width: calc(100% - 2rem);
+      max-width: 600px;
+      background: rgba(10, 10, 15, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      padding: 16px 20px;
+      box-shadow: 0 20px 80px rgba(0, 0, 0, 0.5);
+    }
+    .sticky-mint__inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .sticky-mint__meta {
+      flex: 1;
+      min-width: 0;
+    }
+    .sticky-mint__label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 4px;
+    }
+    .sticky-mint__value {
+      font-size: 16px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sticky-mint__actions {
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .sticky-mint .btn-sm {
+      padding: 10px 16px;
+      font-size: 14px;
+      min-width: 100px;
+    }
+    
+    /* After mint section */
+    #afterMintSection {
+      transition: opacity 0.3s ease;
+    }
+    
+    /* Progress bar */
+    #supplyProgressBar {
+      min-height: 30px;
+    }
+    
+    /* Hidden utility */
+    .hidden {
+      display: none !important;
+    }
+  </style>
   <link rel="stylesheet" href="assets/css/components.css" />
 </head>
 
@@ -606,6 +611,14 @@
           <h2 class="mt-2 text-4xl md:text-5xl font-semibold leading-tight">One click. No confusion.</h2>
           <p class="mt-3 text-lg muted max-w-2xl">Select a tier, connect your wallet, mint. The mint button will be enabled once the Candy Machine address is set.</p>
 
+          <!-- Supply + Jobs progress (rendered by ui.js) -->
+          <div id="supplyContainer" class="supply-container mt-4">
+            <!-- Эти элементы будут созданы динамически в ui.js, но мы добавляем их статически для надежности -->
+            <div id="supplyMintedPill" class="mb-1">Supply: —/— minted</div>
+            <div id="supplyRemainPill" class="mb-2">Supply remaining: —</div>
+            <div id="supplyProgressBar" class="mt-2"></div>
+          </div>
+
           <div class="mt-6 flex items-center gap-2 flex-wrap">
             <div class="step-pill"><span class="step-num">1</span> Select tier</div>
             <div class="step-arrow">→</div>
@@ -629,31 +642,17 @@
               <span id="selectedTierName">—</span>
             </div>
             <div id="selectedTierMeta" class="mt-2 monospace muted text-sm">guard: —</div>
-            <div id="tierReady" class="ready-micro mt-2 text-xs uppercase tracking-[.18em] accent ready-hide">Ready.</div>
+            <!-- ПРАВКА 1: заменили ready-hide на hidden -->
+            <p id="tierReady" class="ready-micro text-[11px] text-neutral-500 mt-2 hidden">Ready.</p>
           </div>
         </div>
 
         <div class="md:text-right">
           <div class="mt-1 flex flex-wrap gap-2 justify-start md:justify-end">
-            <div class="pill"><span class="muted">Network</span> <strong id="netPill">Devnet</strong></div>
+            <div class="pill"><span class="muted">Network</span> <strong id="netPill">Mainnet</strong></div>
             <div class="pill"><span class="muted">Wallet</span> <strong id="walletPill">Not connected</strong></div>
             <div class="pill"><span class="muted">Ready</span> <strong id="readyPill" class="text-yellow-400">No</strong></div>
           </div>
-        </div>
-      </div>
-      </div>
-
-      <!-- Supply Section -->
-      <div class="mt-8 card p-5">
-        <div class="text-xs uppercase tracking-widest muted2">Supply</div>
-        <div class="mt-2 text-2xl font-extrabold" id="supplyText">— / — minted</div>
-        <div class="mt-2 text-sm muted2" id="supplyRemaining">Remaining: —</div>
-        <div class="mt-4 w-full bg-gray-800 rounded-full h-2">
-          <div id="supplyProgressBar" class="h-2 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500" style="width: 0%"></div>
-        </div>
-        <div class="mt-2 text-xs muted2 flex justify-between">
-          <span>0</span>
-          <span id="supplyTotal">—</span>
         </div>
       </div>
 
@@ -700,13 +699,30 @@
       </div>
 
       <!-- After Mint Section -->
-      <div class="mt-8 card p-5">
-        <div class="text-xs uppercase tracking-widest muted2">After mint</div>
-        <div class="mt-2 flex flex-wrap items-center gap-2">
-          <a id="shareX" class="btn-ghost" target="_blank" rel="noreferrer">Share on X</a>
-          <a id="viewSolscan" href="#" target="_blank" class="btn-ghost hidden">View on Solscan</a>
-          <button id="copyTx" class="btn-ghost hidden">Copy tx</button>
-          <span id="afterMintText" class="text-sm muted2">Celebration moment + explorer link will appear here after mint integration.</span>
+      <div id="afterMintSection" class="hidden mt-6 pt-6 border-t border-white/10">
+        <div class="text-sm font-medium mb-3 flex items-center gap-2">
+          <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+          </svg>
+          <span>Mint Successful!</span>
+        </div>
+        
+        <div class="flex flex-col gap-2">
+          <a id="shareOnX" href="#" target="_blank" class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-black/50 border border-white/20 rounded-lg text-sm font-medium hover:bg-black/70 transition">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+            </svg>
+            Share on X
+          </a>
+          
+          <div class="grid grid-cols-1 gap-2">
+            <div class="text-xs uppercase tracking-widest muted2 mb-2">Recent Transactions</div>
+            <div id="recentTxsContainer" class="space-y-2">
+              <div class="text-xs text-neutral-500 italic">
+                No recent transactions
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -784,46 +800,33 @@
     </div>
   </div>
 
+<!-- ПРАВКА 2: обновили версии скриптов с v=18 на v=22 -->
+
 <script>
-  // Set current year in footer
-  document.getElementById('year').textContent = new Date().getFullYear();
-  
-  // Copy address buttons
+  // Простой скрипт для копирования адресов
   document.querySelectorAll('[data-copy]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const id = btn.getAttribute('data-copy');
-      const el = document.getElementById(id);
-      if (!el) return;
-      
-      const text = el.textContent;
-      navigator.clipboard.writeText(text)
-        .then(() => {
-          const original = btn.textContent;
-          btn.textContent = 'Copied!';
-          setTimeout(() => btn.textContent = original, 1500);
-        })
-        .catch(() => {
-          const textArea = document.createElement('textarea');
-          textArea.value = text;
-          document.body.appendChild(textArea);
-          textArea.select();
-          try {
-            document.execCommand('copy');
-            const original = btn.textContent;
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-copy');
+      const targetEl = document.getElementById(targetId);
+      if (targetEl) {
+        navigator.clipboard.writeText(targetEl.textContent)
+          .then(() => {
+            const originalText = btn.textContent;
             btn.textContent = 'Copied!';
-            setTimeout(() => btn.textContent = original, 1500);
-          } catch (err) {}
-          document.body.removeChild(textArea);
-        });
+            setTimeout(() => btn.textContent = originalText, 1500);
+          })
+          .catch(err => console.error('Copy failed:', err));
+      }
     });
   });
+  
+  // Устанавливаем текущий год в футере
+  document.getElementById('year').textContent = new Date().getFullYear();
 </script>
 
-<!-- UI (defer) -->
-<script defer src="assets/js/ui.js?v=23"></script>
 
-<!-- Mint logic (module) -->
 <script type="module" src="assets/js/mint.js?v=23"></script>
+<script defer src="assets/js/ui.js?v=23"></script>
 
 </body>
 </html>
