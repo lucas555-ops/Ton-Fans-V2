@@ -94,96 +94,30 @@
       padding:.25rem .55rem;border-radius:9999px;font-size:.75rem;font-weight:700;
     }
   
-    /* Subtle status dots on pills (Apple-level) */
-    .pills .pill{ position: relative; }
-    .pills .pill.connected::before{
-      content: "";
-      width: 6px; height: 6px;
-      border-radius: 999px;
-      display: inline-block;
-      margin-right: 8px;
-      background: var(--good);
-      box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.35);
-      animation: dotPulse 1.4s infinite;
-      transform: translateY(-0.5px);
-    }
-    @keyframes dotPulse{
-      0%{ box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.28); }
-      70%{ box-shadow: 0 0 0 8px rgba(46, 204, 113, 0.0); }
-      100%{ box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.0); }
-    }
-    /* extra subtle tint for Ready=Yes */
-    .pills .pill.ready-yes{
-      border-color: rgba(46, 204, 113, 0.35);
-      background: rgba(46, 204, 113, 0.06);
-    }
-    
-    /* Sticky mint bar */
-    .sticky-mint {
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 9999;
-      width: calc(100% - 2rem);
-      max-width: 600px;
-      background: rgba(10, 10, 15, 0.92);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 20px;
-      padding: 16px 20px;
-      box-shadow: 0 20px 80px rgba(0, 0, 0, 0.5);
-    }
-    .sticky-mint__inner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 20px;
-    }
-    .sticky-mint__meta {
-      flex: 1;
-      min-width: 0;
-    }
-    .sticky-mint__label {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.15em;
-      color: rgba(255, 255, 255, 0.5);
-      margin-bottom: 4px;
-    }
-    .sticky-mint__value {
-      font-size: 16px;
-      font-weight: 700;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .sticky-mint__actions {
-      display: flex;
-      gap: 10px;
-      flex-shrink: 0;
-    }
-    .sticky-mint .btn-sm {
-      padding: 10px 16px;
-      font-size: 14px;
-      min-width: 100px;
-    }
-    
-    /* After mint section */
-    #afterMintSection {
-      transition: opacity 0.3s ease;
-    }
-    
-    /* Progress bar */
-    #supplyProgressBar {
-      min-height: 30px;
-    }
-    
-    /* Hidden utility */
-    .hidden {
-      display: none !important;
-    }
-  </style>
+/* Subtle status dots on pills (Apple-level) */
+.pills .pill{ position: relative; }
+.pills .pill.connected::before{
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  display: inline-block;
+  margin-right: 8px;
+  background: var(--good);
+  box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.35);
+  animation: dotPulse 1.4s infinite;
+  transform: translateY(-0.5px);
+}
+@keyframes dotPulse{
+  0%{ box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.28); }
+  70%{ box-shadow: 0 0 0 8px rgba(46, 204, 113, 0.0); }
+  100%{ box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.0); }
+}
+/* extra subtle tint for Ready=Yes */
+.pills .pill.ready-yes{
+  border-color: rgba(46, 204, 113, 0.35);
+  background: rgba(46, 204, 113, 0.06);
+}
+</style>
   <link rel="stylesheet" href="assets/css/components.css" />
 </head>
 
@@ -281,7 +215,7 @@
       <div class="text-xs uppercase tracking-[.2em] accent">Built on π</div>
       <h2 class="mt-2 text-2xl md:text-3xl font-extrabold">Inspired by Pi. Designed for an open network.</h2>
       <p class="mt-3 muted max-w-3xl">
-        The rays aren't random — they're a visual nod to <span class="text-white font-semibold">π (Pi)</span>, the infinite constant behind every perfect circle.
+        The rays aren’t random — they’re a visual nod to <span class="text-white font-semibold">π (Pi)</span>, the infinite constant behind every perfect circle.
         Not a claim of provable encoding — just a clean inspiration: <span class="text-white">infinity</span>, <span class="text-white">precision</span>, <span class="text-white">balance</span>.
       </p>
       <div class="mt-6 grid md:grid-cols-3 gap-4">
@@ -295,7 +229,7 @@
         </div>
         <div class="card p-5">
           <div class="tier-badge">Connection</div>
-          <p class="mt-2 muted">Radial symmetry reads as "network energy" — instantly recognizable.</p>
+          <p class="mt-2 muted">Radial symmetry reads as “network energy” — instantly recognizable.</p>
         </div>
       </div>
     </div>
@@ -309,7 +243,7 @@
       <h2 class="mt-2 text-2xl md:text-3xl font-extrabold">TON aesthetics × Solana rails.</h2>
 
       <p class="mt-3 muted max-w-3xl">
-        TON Fans is a <span class="text-white font-semibold">TON-inspired</span> coin collection — but it's minted on
+        TON Fans is a <span class="text-white font-semibold">TON-inspired</span> coin collection — but it’s minted on
         <span class="text-white font-semibold">Solana</span> on purpose.
         Solana gives collectors the smoothest mint experience: fast confirmations, low fees, and battle-tested NFT tooling.
       </p>
@@ -330,7 +264,7 @@
         </div>
         <div class="card p-5">
           <div class="tier-badge">NFT infra</div>
-          <p class="mt-2 muted">Wallets, explorers, marketplaces — Solana's rails are mature.</p>
+          <p class="mt-2 muted">Wallets, explorers, marketplaces — Solana’s rails are mature.</p>
         </div>
       </div>
 
@@ -385,7 +319,7 @@
         </div>
         <ul class="mt-5 space-y-2 text-sm muted">
           <li>Bigger presence</li>
-          <li>More "coin" feel</li>
+          <li>More “coin” feel</li>
           <li>Collector favorite</li>
         </ul>
         <div class="mt-5 flex items-center gap-2 text-sm">
@@ -484,7 +418,7 @@
           <h3 class="mt-3 text-lg md:text-xl font-bold">Holder snapshot & perks</h3>
           <ul class="mt-3 space-y-2 muted">
             <li>• On-chain holder snapshot (verifiable)</li>
-            <li>• "Proof-of-Holder" share card (optional)</li>
+            <li>• “Proof-of-Holder” share card (optional)</li>
             <li>• Community signal: what premium should look like</li>
           </ul>
         </div>
@@ -502,7 +436,7 @@
 
           <h3 class="mt-3 text-lg md:text-xl font-bold">Premium follow-up on TON (holder-only)</h3>
           <p class="mt-3 muted max-w-3xl">
-            <span class="text-white font-semibold">If TON Fans fully sells out</span>, we plan a premium "Diamond-grade"
+            <span class="text-white font-semibold">If TON Fans fully sells out</span>, we plan a premium “Diamond-grade”
             coin series on <span class="text-white font-semibold">TON</span>, distributed <span class="text-white font-semibold">free to current holders</span>
             via snapshot-based claim.
           </p>
@@ -590,7 +524,7 @@
       <div>
         <div class="text-xs uppercase tracking-[.2em] accent">Gallery</div>
         <h2 class="mt-2 text-2xl md:text-4xl font-extrabold">Four tiers. One identity.</h2>
-        <p class="mt-2 muted max-w-2xl">A few real samples. Diamond tiers are visually obvious — that's the point.</p>
+        <p class="mt-2 muted max-w-2xl">A few real samples. Diamond tiers are visually obvious — that’s the point.</p>
       </div>
     </div>
 
@@ -610,14 +544,6 @@
           <div class="text-xs uppercase tracking-[.2em] accent">Mint</div>
           <h2 class="mt-2 text-4xl md:text-5xl font-semibold leading-tight">One click. No confusion.</h2>
           <p class="mt-3 text-lg muted max-w-2xl">Select a tier, connect your wallet, mint. The mint button will be enabled once the Candy Machine address is set.</p>
-
-          <!-- Supply + Jobs progress (rendered by ui.js) -->
-          <div id="supplyContainer" class="supply-container mt-4">
-            <!-- Эти элементы будут созданы динамически в ui.js, но мы добавляем их статически для надежности -->
-            <div id="supplyMintedPill" class="mb-1">Supply: —/— minted</div>
-            <div id="supplyRemainPill" class="mb-2">Supply remaining: —</div>
-            <div id="supplyProgressBar" class="mt-2"></div>
-          </div>
 
           <div class="mt-6 flex items-center gap-2 flex-wrap">
             <div class="step-pill"><span class="step-num">1</span> Select tier</div>
@@ -642,18 +568,18 @@
               <span id="selectedTierName">—</span>
             </div>
             <div id="selectedTierMeta" class="mt-2 monospace muted text-sm">guard: —</div>
-            <!-- ПРАВКА 1: заменили ready-hide на hidden -->
-            <p id="tierReady" class="ready-micro text-[11px] text-neutral-500 mt-2 hidden">Ready.</p>
+            <div id="tierReady" class="ready-micro mt-2 text-xs uppercase tracking-[.18em] accent ready-hide">Ready.</div>
           </div>
         </div>
 
         <div class="md:text-right">
           <div class="mt-1 flex flex-wrap gap-2 justify-start md:justify-end">
-            <div class="pill"><span class="muted">Network</span> <strong id="netPill">Mainnet</strong></div>
+            <div class="pill"><span class="muted">Network</span> <strong id="netPill">Devnet</strong></div>
             <div class="pill"><span class="muted">Wallet</span> <strong id="walletPill">Not connected</strong></div>
             <div class="pill"><span class="muted">Ready</span> <strong id="readyPill" class="text-yellow-400">No</strong></div>
           </div>
         </div>
+      </div>
       </div>
 
       <div class="mt-8 grid md:grid-cols-3 gap-4">
@@ -698,31 +624,11 @@
         </div>
       </div>
 
-      <!-- After Mint Section -->
-      <div id="afterMintSection" class="hidden mt-6 pt-6 border-t border-white/10">
-        <div class="text-sm font-medium mb-3 flex items-center gap-2">
-          <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-          </svg>
-          <span>Mint Successful!</span>
-        </div>
-        
-        <div class="flex flex-col gap-2">
-          <a id="shareOnX" href="#" target="_blank" class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-black/50 border border-white/20 rounded-lg text-sm font-medium hover:bg-black/70 transition">
-            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-            </svg>
-            Share on X
-          </a>
-          
-          <div class="grid grid-cols-1 gap-2">
-            <div class="text-xs uppercase tracking-widest muted2 mb-2">Recent Transactions</div>
-            <div id="recentTxsContainer" class="space-y-2">
-              <div class="text-xs text-neutral-500 italic">
-                No recent transactions
-              </div>
-            </div>
-          </div>
+      <div class="mt-8 card p-5">
+        <div class="text-xs uppercase tracking-widest muted2">After mint</div>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <a id="shareX" class="btn-ghost" target="_blank" rel="noreferrer">Share on X</a>
+          <span class="text-sm muted2">Celebration moment + explorer link will appear here after mint integration.</span>
         </div>
       </div>
     </div>
@@ -761,7 +667,7 @@
         </div>
 
         <div class="card p-5">
-          <div class="font-semibold">What's the best tier to mint?</div>
+          <div class="font-semibold">What’s the best tier to mint?</div>
           <p class="mt-2 muted text-sm">If you want scarcity: Big Diamond. If you want entry: LittlGEN. BigGEN is a strong middle ground.</p>
         </div>
       </div>
@@ -800,31 +706,12 @@
     </div>
   </div>
 
-<!-- ПРАВКА 2: обновили версии скриптов с v=18 на v=22 -->
-<script defer src="assets/js/ui.js?v=22"></script>
-<script type="module" src="assets/js/mint.js?v=22"></script>
+<!-- UI (defer) -->
+<script defer src="assets/js/ui.js?v=23"></script>
 
-<script>
-  // Простой скрипт для копирования адресов
-  document.querySelectorAll('[data-copy]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const targetId = btn.getAttribute('data-copy');
-      const targetEl = document.getElementById(targetId);
-      if (targetEl) {
-        navigator.clipboard.writeText(targetEl.textContent)
-          .then(() => {
-            const originalText = btn.textContent;
-            btn.textContent = 'Copied!';
-            setTimeout(() => btn.textContent = originalText, 1500);
-          })
-          .catch(err => console.error('Copy failed:', err));
-      }
-    });
-  });
-  
-  // Устанавливаем текущий год в футере
-  document.getElementById('year').textContent = new Date().getFullYear();
-</script>
+<!-- Mint logic (module) -->
+<script type="module" src="assets/js/mint.js?v=23"></script>
+
 
 </body>
 </html>
