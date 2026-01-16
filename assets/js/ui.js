@@ -918,7 +918,7 @@
       }
 
       try {
-        const okPreview = await showPaymentPreview(window.__TONFANS_STATE__ || {}, getQty());
+        const okPreview = await paymentPreviewBeforeMint(window.__TONFANS_STATE__ || {}, getQty());
         if (!okPreview) return;
 
         await api.mintNow?.(getQty());
@@ -954,7 +954,7 @@
           return;
         }
 
-        const okPreview = await showPaymentPreview(window.__TONFANS_STATE__ || {}, getQty());
+        const okPreview = await paymentPreviewBeforeMint(window.__TONFANS_STATE__ || {}, getQty());
         if (!okPreview) return;
 
         await api.mintNow?.(getQty());
