@@ -1221,7 +1221,21 @@ async function _executeMint(qty){
     // Friendly mapping for common Solana simulation error when recipient account doesn't exist (fresh devnet pubkey).
     if (raw.includes('no record of a prior credit')) {
       const dest = state.solDestination ? shortPk(String(state.solDestination)) : 'destination';
-      const msg = `Transaction simulation failed: payment ${dest} wallet is not initialized on ${CLUSTER}. Fund it with a tiny SOL amount (e.g. 0.001 on devnet), then retry.`;
+      
+      // Calculate minimum SOL needed for treasury initialization
+      let treasuryMsg = `Fund it with at least 0.05 SOL for account initialization.`;
+      
+      if (state.priceSol != null && Number.isFinite(state.priceSol)) {
+        const pricePerMint = state.priceSol;
+        const rentCost = 0.05;  // Approximate rent for account initialization
+        const minimumTreasury = pricePerMint + rentCost;
+        
+        treasuryMsg = `Fund it with at least ${minimumTreasury.toFixed(3)} SOL:\n`;
+        treasuryMsg += `• Price per mint: ${pricePerMint.toFixed(2)} SOL\n`;
+        treasuryMsg += `• Account initialization: ~${rentCost.toFixed(2)} SOL`;
+      }
+      
+      const msg = `Transaction simulation failed: Treasury wallet ${dest} is not initialized on ${CLUSTER}.\n\n${treasuryMsg}\n\nOnce funded, retry the mint.`;
       setHint(msg, 'error');
       emitToast(msg, 'error');
       throw e;
