@@ -117,6 +117,67 @@
   border-color: rgba(46, 204, 113, 0.35);
   background: rgba(46, 204, 113, 0.06);
 }
+
+/* Sticky mint bar */
+.sticky-mint {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 95%;
+  max-width: 600px;
+  background: rgba(15, 15, 15, 0.95);
+  backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 14px 18px;
+  z-index: 1000;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 193, 255, 0.08);
+  display: none;
+}
+
+.sticky-mint__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sticky-mint__meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.sticky-mint__label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 2px;
+}
+
+.sticky-mint__value {
+  font-weight: 700;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sticky-mint__actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 14px;
+  border-radius: 12px;
+}
+
+.has-sticky {
+  padding-bottom: 90px;
+}
 </style>
   <link rel="stylesheet" href="assets/css/components.css" />
 </head>
@@ -215,7 +276,7 @@
       <div class="text-xs uppercase tracking-[.2em] accent">Built on π</div>
       <h2 class="mt-2 text-2xl md:text-3xl font-extrabold">Inspired by Pi. Designed for an open network.</h2>
       <p class="mt-3 muted max-w-3xl">
-        The rays aren’t random — they’re a visual nod to <span class="text-white font-semibold">π (Pi)</span>, the infinite constant behind every perfect circle.
+        The rays aren't random — they're a visual nod to <span class="text-white font-semibold">π (Pi)</span>, the infinite constant behind every perfect circle.
         Not a claim of provable encoding — just a clean inspiration: <span class="text-white">infinity</span>, <span class="text-white">precision</span>, <span class="text-white">balance</span>.
       </p>
       <div class="mt-6 grid md:grid-cols-3 gap-4">
@@ -229,7 +290,7 @@
         </div>
         <div class="card p-5">
           <div class="tier-badge">Connection</div>
-          <p class="mt-2 muted">Radial symmetry reads as “network energy” — instantly recognizable.</p>
+          <p class="mt-2 muted">Radial symmetry reads as "network energy" — instantly recognizable.</p>
         </div>
       </div>
     </div>
@@ -243,7 +304,7 @@
       <h2 class="mt-2 text-2xl md:text-3xl font-extrabold">TON aesthetics × Solana rails.</h2>
 
       <p class="mt-3 muted max-w-3xl">
-        TON Fans is a <span class="text-white font-semibold">TON-inspired</span> coin collection — but it’s minted on
+        TON Fans is a <span class="text-white font-semibold">TON-inspired</span> coin collection — but it's minted on
         <span class="text-white font-semibold">Solana</span> on purpose.
         Solana gives collectors the smoothest mint experience: fast confirmations, low fees, and battle-tested NFT tooling.
       </p>
@@ -264,7 +325,7 @@
         </div>
         <div class="card p-5">
           <div class="tier-badge">NFT infra</div>
-          <p class="mt-2 muted">Wallets, explorers, marketplaces — Solana’s rails are mature.</p>
+          <p class="mt-2 muted">Wallets, explorers, marketplaces — Solana's rails are mature.</p>
         </div>
       </div>
 
@@ -319,7 +380,7 @@
         </div>
         <ul class="mt-5 space-y-2 text-sm muted">
           <li>Bigger presence</li>
-          <li>More “coin” feel</li>
+          <li>More "coin" feel</li>
           <li>Collector favorite</li>
         </ul>
         <div class="mt-5 flex items-center gap-2 text-sm">
@@ -418,7 +479,7 @@
           <h3 class="mt-3 text-lg md:text-xl font-bold">Holder snapshot & perks</h3>
           <ul class="mt-3 space-y-2 muted">
             <li>• On-chain holder snapshot (verifiable)</li>
-            <li>• “Proof-of-Holder” share card (optional)</li>
+            <li>• "Proof-of-Holder" share card (optional)</li>
             <li>• Community signal: what premium should look like</li>
           </ul>
         </div>
@@ -436,7 +497,7 @@
 
           <h3 class="mt-3 text-lg md:text-xl font-bold">Premium follow-up on TON (holder-only)</h3>
           <p class="mt-3 muted max-w-3xl">
-            <span class="text-white font-semibold">If TON Fans fully sells out</span>, we plan a premium “Diamond-grade”
+            <span class="text-white font-semibold">If TON Fans fully sells out</span>, we plan a premium "Diamond-grade"
             coin series on <span class="text-white font-semibold">TON</span>, distributed <span class="text-white font-semibold">free to current holders</span>
             via snapshot-based claim.
           </p>
@@ -524,7 +585,7 @@
       <div>
         <div class="text-xs uppercase tracking-[.2em] accent">Gallery</div>
         <h2 class="mt-2 text-2xl md:text-4xl font-extrabold">Four tiers. One identity.</h2>
-        <p class="mt-2 muted max-w-2xl">A few real samples. Diamond tiers are visually obvious — that’s the point.</p>
+        <p class="mt-2 muted max-w-2xl">A few real samples. Diamond tiers are visually obvious — that's the point.</p>
       </div>
     </div>
 
@@ -582,6 +643,20 @@
       </div>
       </div>
 
+      <!-- Supply Section -->
+      <div class="mt-8 card p-5">
+        <div class="text-xs uppercase tracking-widest muted2">Supply</div>
+        <div class="mt-2 text-2xl font-extrabold" id="supplyText">— / — minted</div>
+        <div class="mt-2 text-sm muted2" id="supplyRemaining">Remaining: —</div>
+        <div class="mt-4 w-full bg-gray-800 rounded-full h-2">
+          <div id="supplyProgressBar" class="h-2 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500" style="width: 0%"></div>
+        </div>
+        <div class="mt-2 text-xs muted2 flex justify-between">
+          <span>0</span>
+          <span id="supplyTotal">—</span>
+        </div>
+      </div>
+
       <div class="mt-8 grid md:grid-cols-3 gap-4">
         <div class="card p-5">
           <div class="text-xs uppercase tracking-widest muted2">Wallet</div>
@@ -624,11 +699,14 @@
         </div>
       </div>
 
+      <!-- After Mint Section -->
       <div class="mt-8 card p-5">
         <div class="text-xs uppercase tracking-widest muted2">After mint</div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
           <a id="shareX" class="btn-ghost" target="_blank" rel="noreferrer">Share on X</a>
-          <span class="text-sm muted2">Celebration moment + explorer link will appear here after mint integration.</span>
+          <a id="viewSolscan" href="#" target="_blank" class="btn-ghost hidden">View on Solscan</a>
+          <button id="copyTx" class="btn-ghost hidden">Copy tx</button>
+          <span id="afterMintText" class="text-sm muted2">Celebration moment + explorer link will appear here after mint integration.</span>
         </div>
       </div>
     </div>
@@ -667,7 +745,7 @@
         </div>
 
         <div class="card p-5">
-          <div class="font-semibold">What’s the best tier to mint?</div>
+          <div class="font-semibold">What's the best tier to mint?</div>
           <p class="mt-2 muted text-sm">If you want scarcity: Big Diamond. If you want entry: LittlGEN. BigGEN is a strong middle ground.</p>
         </div>
       </div>
@@ -706,12 +784,46 @@
     </div>
   </div>
 
+<script>
+  // Set current year in footer
+  document.getElementById('year').textContent = new Date().getFullYear();
+  
+  // Copy address buttons
+  document.querySelectorAll('[data-copy]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = btn.getAttribute('data-copy');
+      const el = document.getElementById(id);
+      if (!el) return;
+      
+      const text = el.textContent;
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          const original = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(() => btn.textContent = original, 1500);
+        })
+        .catch(() => {
+          const textArea = document.createElement('textarea');
+          textArea.value = text;
+          document.body.appendChild(textArea);
+          textArea.select();
+          try {
+            document.execCommand('copy');
+            const original = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => btn.textContent = original, 1500);
+          } catch (err) {}
+          document.body.removeChild(textArea);
+        });
+    });
+  });
+</script>
+
 <!-- UI (defer) -->
 <script defer src="assets/js/ui.js?v=23"></script>
 
 <!-- Mint logic (module) -->
 <script type="module" src="assets/js/mint.js?v=23"></script>
-
 
 </body>
 </html>
