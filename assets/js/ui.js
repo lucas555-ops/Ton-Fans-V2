@@ -357,25 +357,66 @@
     els.recentTxsContainer.innerHTML = html;
   }
 
-  function updateAfterMintUI(s){
-    if (!els.afterMintSection) return;
-    
-    const show = s.recentTxSignatures && s.recentTxSignatures.length > 0;
-    setHidden(els.afterMintSection, !show);
-    
-    if (show) {
-      // Обновляем список транзакций
-      updateRecentTransactions(s.recentTxSignatures);
-      
-      // Обновляем Share on X
-      if (els.shareOnX && s.recentTxSignatures[0]) {
-        const tierName = s.tierLabel || "TON Fans NFT";
-        const txSig = s.recentTxSignatures[0].signature;
-        const shareText = `Just minted ${tierName} on @ton_fans! https://solscan.io/tx/${txSig}?cluster=devnet`;
-        els.shareOnX.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
-        els.shareOnX.target = "_blank";
+  function normalizeTxs(raw){
+    if (!Array.isArray(raw)) return [];
+    const out = [];
+    for (const x of raw){
+      if (!x) continue;
+      if (typeof x === "string") {
+        const sig = x;
+        if (sig.length < 12) continue;
+        out.push({"signature":sig});
+        continue;
+      }
+      if (typeof x === "object") {
+        const sig = x.signature || x.sig || x.tx || null;
+        if (typeof sig !== "string" || sig.length < 12) continue;
+        const shortSig = x.shortSig || (sig.slice(0,8) + "…" + sig.slice(-8));
+        const explorerUrl = x.explorerUrl || `https://solscan.io/tx/${sig}${(window.__TONFANS_STATE__?.cluster === 'devnet') ? '?cluster=devnet' : ''}`;
+        out.push({
+          signature: sig,
+          shortSig,
+          explorerUrl,
+          timestamp: Number(x.timestamp)||null,
+        });
       }
     }
+    // limit
+    return out.slice(0, 10);
+  }
+
+  function updateAfterMintUI(s){
+    if (!els.afterMintSection) return;
+
+    const last = s.lastMint || null;
+    const ok = !!(last && last.ok && typeof last.signature === "string" && last.signature.length > 12);
+
+    // показываем блок ТОЛЬКО после реального успешного минта в этой сессии
+    setHidden(els.afterMintSection, !ok);
+
+    if (!ok) return;
+
+    // Share on X (only when ok)
+    if (els.shareOnX){
+      setHidden(els.shareOnX, false);
+      const tierName = last.tierLabel || s.tierLabel || "TON Fans NFT";
+      const txSig = last.signature;
+      const clusterParam = (s.cluster === "devnet") ? "?cluster=devnet" : "";
+      const shareText = `Just minted ${tierName} on @ton_fans! https://solscan.io/tx/${txSig}${clusterParam}`;
+      els.shareOnX.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
+      els.shareOnX.target = "_blank";
+    }
+
+    // Recent transactions: show last mint txs first
+    const txs = Array.isArray(last.signatures) && last.signatures.length
+      ? last.signatures.map((sig) => ({
+          signature: sig,
+          shortSig: sig.slice(0,8) + "…" + sig.slice(-8),
+          explorerUrl: `https://solscan.io/tx/${sig}${(s.cluster === 'devnet') ? '?cluster=devnet' : ''}`
+        }))
+      : normalizeTxs(s.recentTxSignatures);
+
+    updateRecentTransactions(txs);
   }
 
   function render(s){
@@ -425,13 +466,29 @@
       }
     }
     highlightTier(s.tierRaw);
-
-    // Sticky bar
+    // Sticky bar (Apple-grade, animated via assets/css/components.css)
     if (els.stickyMintBar) {
       const show = !!s.tierRaw;
-      setHidden(els.stickyMintBar, !show);
-      if (show) setText(els.stickySelected, s.tierLabel || "—");
+      document.body.classList.toggle('has-sticky', show);
+
+      if (show) {
+        els.stickyMintBar.classList.remove('sticky-suppressed');
+        setHidden(els.stickyMintBar, false);
+        setText(els.stickySelected, s.tierLabel || '—');
+        // animate in
+        requestAnimationFrame(() => {
+          els.stickyMintBar.classList.add('sticky-in');
+        });
+      } else {
+        els.stickyMintBar.classList.remove('sticky-in');
+        els.stickyMintBar.classList.add('sticky-suppressed');
+        // hide after transition so it doesn't steal clicks
+        setTimeout(() => {
+          setHidden(els.stickyMintBar, true);
+        }, 240);
+      }
     }
+
     // Quantity buttons - четкая логика блокировки
     const currentQty = getQty();
 
