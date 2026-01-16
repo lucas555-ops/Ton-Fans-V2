@@ -117,58 +117,8 @@
       border-color: rgba(46, 204, 113, 0.35);
       background: rgba(46, 204, 113, 0.06);
     }
-    
-    /* Sticky mint bar */
-    .sticky-mint {
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 9999;
-      width: calc(100% - 2rem);
-      max-width: 600px;
-      background: rgba(10, 10, 15, 0.92);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 20px;
-      padding: 16px 20px;
-      box-shadow: 0 20px 80px rgba(0, 0, 0, 0.5);
-    }
-    .sticky-mint__inner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 20px;
-    }
-    .sticky-mint__meta {
-      flex: 1;
-      min-width: 0;
-    }
-    .sticky-mint__label {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.15em;
-      color: rgba(255, 255, 255, 0.5);
-      margin-bottom: 4px;
-    }
-    .sticky-mint__value {
-      font-size: 16px;
-      font-weight: 700;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .sticky-mint__actions {
-      display: flex;
-      gap: 10px;
-      flex-shrink: 0;
-    }
-    .sticky-mint .btn-sm {
-      padding: 10px 16px;
-      font-size: 14px;
-      min-width: 100px;
-    }
-    
+    /* Sticky Mint Bar styles live in assets/css/components.css */
+
     /* After mint section */
     #afterMintSection {
       transition: opacity 0.3s ease;
@@ -708,7 +658,7 @@
         </div>
         
         <div class="flex flex-col gap-2">
-          <a id="shareOnX" href="#" target="_blank" class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-black/50 border border-white/20 rounded-lg text-sm font-medium hover:bg-black/70 transition">
+          <a id="shareOnX" href="#" target="_blank" class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-black/50 border border-white/20 rounded-lg text-sm font-medium hover:bg-black/70 transition hidden">
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
               <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
             </svg>
