@@ -1227,6 +1227,32 @@ async function _executeMint(qty){
       throw e;
     }
 
+    // Friendly mapping for insufficient SOL in wallet
+    if (raw.includes('insufficient funds for rent') || raw.includes('NotEnoughSOL') || raw.includes('Not enough SOL')) {
+      // Try to extract actual amounts from logs (if available)
+      let needed = null;
+      let have = null;
+      
+      try {
+        // Look for "Require XXXXXX lamports, accounts has YYYYYY lamports" pattern
+        const match = raw.match(/Require\s+(\d+)\s+lamports.*accounts has\s+(\d+)\s+lamports/i);
+        if (match) {
+          const neededLamports = parseInt(match[1], 10);
+          const haveLamports = parseInt(match[2], 10);
+          needed = (neededLamports / 1_000_000_000).toFixed(2);
+          have = (haveLamports / 1_000_000_000).toFixed(4);
+        }
+      } catch {}
+
+      const msg = needed && have 
+        ? `❌ Not enough SOL in wallet\n\nYou need: ${needed} SOL\nYou have: ${have} SOL\n\nPlease add more SOL and try again.`
+        : `❌ Not enough SOL in wallet\n\nPlease add more SOL and try again.`;
+      
+      setHint(msg, 'error');
+      emitToast(msg, 'error');
+      throw e;
+    }
+
     setHint(raw, 'error');
     emitToast(raw || 'Mint failed', 'error');
     throw e;
