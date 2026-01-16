@@ -1,28 +1,86 @@
-// assets/js/mint.js (v22) — TON Fans (DEVNET)
-// Fixes:
-// - Supply всегда обновляется (даже при mintedRemaining = null)
-// - Безопасный запуск при первом заходе
-// - Улучшенное кэширование tier
-// - Массив последних транзакций (топовая фича)
+// assets/js/mint.js (v23) — TON Fans (AUTO devnet/mainnet)
+// Fixes / features:
+// - Auto cluster (window.TONFANS_CONFIG.cluster OR ?cluster=devnet/mainnet-beta OR localStorage)
+// - RPC failover list per cluster
+// - Candy Guard mintLimit counter (multi-CDN) + PRE-CHECK to avoid botTax on 3/3
+// - Solscan links auto by cluster
+// - Best-effort "truth check" after mint (metadata fetch)
+
+/* global window, document, location */
+
+const MINT_LIMIT_ID = 1;          // must match Candy Guard mintLimit.id
+const MAX_QTY = 3;                // project rule: max 3 per wallet
+const CU_LIMIT = 800_000;
 
 const DEVNET_RPCS = [
   "https://api.devnet.solana.com",
   "https://rpc.ankr.com/solana_devnet",
 ];
 
-const CLUSTER = "devnet";
-const MINT_LIMIT_ID = 1;
-const MAX_QTY = 3;
-const CU_LIMIT = 800_000;
+const MAINNET_RPCS = [
+  "https://api.mainnet-beta.solana.com",
+  "https://rpc.ankr.com/solana",
+];
 
-console.log("[TONFANS] mint.js v22 loaded");
+const RPC_BY_CLUSTER = {
+  devnet: DEVNET_RPCS,
+  "mainnet-beta": MAINNET_RPCS,
+  mainnet: MAINNET_RPCS,
+};
 
-const CM_BY_TIER = {
+function normalizeCluster(v){
+  const s = String(v || "").trim();
+  if (!s) return "devnet";
+  if (s === "mainnet") return "mainnet-beta";
+  if (s === "mainnetbeta") return "mainnet-beta";
+  return s;
+}
+
+function detectCluster(){
+  try {
+    const qs = new URLSearchParams(location.search);
+    const q = qs.get("cluster");
+    if (q) return normalizeCluster(q);
+  } catch {}
+
+  try {
+    const cfg = window.TONFANS_CONFIG?.cluster;
+    if (cfg) return normalizeCluster(cfg);
+  } catch {}
+
+  try {
+    const saved = localStorage.getItem("tonfans:cluster");
+    if (saved) return normalizeCluster(saved);
+  } catch {}
+
+  return "devnet";
+}
+
+const CLUSTER = normalizeCluster(detectCluster());
+try { localStorage.setItem("tonfans:cluster", CLUSTER); } catch {}
+
+console.log("[TONFANS] mint.js v23 loaded, cluster:", CLUSTER);
+
+// ---------- Candy Machine addresses (DEVNET in this repo) ----------
+// If you switch to mainnet, put mainnet CM ids here (or pass devnet cluster).
+const CM_BY_TIER_DEVNET = {
   lgen: "Hr9YzscC71vdHifZR4jRvMd8JmmGxbJrS6j7QckEVqKy",
   bgen: "Ewhn2nJV6tbvq59GMahyWmS54jQWL4n3mrsoVM8n8GHH",
   ldia: "8L5MLvbvM9EsZ8nb1NAwqzEXuVsiq5x5fHGNKchz6UQR",
   bdia: "EyjoAcKwkfNo8NqCZczHHnNSi3ccYpnCetkBUwbqCien",
 };
+
+const CM_BY_TIER_MAINNET = {
+  lgen: null,
+  bgen: null,
+  ldia: null,
+  bdia: null,
+};
+
+function getCmMap(cluster){
+  const c = normalizeCluster(cluster);
+  return c === "devnet" ? CM_BY_TIER_DEVNET : CM_BY_TIER_MAINNET;
+}
 
 const TIER_ALIASES = {
   littlegen: "lgen",
@@ -44,8 +102,8 @@ const TIER_LABEL = {
   bdia: "BigGEN Diamond",
 };
 
-function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
-function shortPk(s){ return s ? s.slice(0,4)+"…"+s.slice(-4) : ""; }
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+function shortPk(s){ return s ? String(s).slice(0,4) + "…" + String(s).slice(-4) : ""; }
 
 function emit(){
   const payload = JSON.parse(JSON.stringify(state));
@@ -87,7 +145,7 @@ function emitSupplyUpdate(supplyData){
   } catch {}
 }
 
-// --- Обновлено: Candy Guard mint counter ---
+// ---------- Candy Guard mint counter ----------
 let CGSDK = null;
 async function loadCgSdk(){
   if (CGSDK) return CGSDK;
@@ -95,6 +153,7 @@ async function loadCgSdk(){
   const candidates = [
     "https://esm.sh/@metaplex-foundation/mpl-candy-guard@0.7.0?bundle",
     "https://esm.sh/@metaplex-foundation/mpl-candy-guard@0.6.0?bundle",
+    "https://esm.sh/@metaplex-foundation/mpl-candy-guard@0.5.1?bundle",
   ];
 
   let last = null;
@@ -106,12 +165,13 @@ async function loadCgSdk(){
         fetchMintCounter: mod.fetchMintCounter,
         findMintCounterPda: mod.findMintCounterPda,
       };
+      console.log("[TONFANS] Candy Guard SDK loaded:", url);
       return CGSDK;
     } catch (e) {
       last = e;
     }
   }
-  throw last || new Error("Failed to load Candy Guard SDK.");
+  throw last || new Error("Failed to load Candy Guard SDK");
 }
 
 function unwrapOption(v){
@@ -133,7 +193,7 @@ function extractCounterCount(counter){
 
 async function fetchMintedCountOnChain(){
   if (!state.walletConnected || !state.wallet || !state.guardPk) return null;
-  
+
   try {
     await loadSdk();
     if (!umi) await rebuildUmi();
@@ -145,18 +205,26 @@ async function fetchMintedCountOnChain(){
     const id = MINT_LIMIT_ID;
 
     let counter = null;
-    
+
+    // Best way
     if (typeof cg.safeFetchMintCounterFromSeeds === "function"){
       try {
         counter = await cg.safeFetchMintCounterFromSeeds(umi, { id, user, candyGuard });
-      } catch {}
+      } catch (e) {
+        const msg = String(e?.message || e || "").toLowerCase();
+        if (msg.includes("accountnotfound") || msg.includes("account not found")) return 0;
+      }
     }
 
+    // Fallback
     if (!counter && typeof cg.findMintCounterPda === "function" && typeof cg.fetchMintCounter === "function"){
       try {
         const pda = cg.findMintCounterPda(umi, { id, user, candyGuard });
         counter = await cg.fetchMintCounter(umi, pda);
-      } catch {}
+      } catch (e) {
+        const msg = String(e?.message || e || "").toLowerCase();
+        if (msg.includes("accountnotfound") || msg.includes("account not found")) return 0;
+      }
     }
 
     return counter ? extractCounterCount(counter) : 0;
@@ -168,26 +236,25 @@ async function fetchMintedCountOnChain(){
 
 async function updateWalletMintCounter(){
   const cnt = await fetchMintedCountOnChain();
-  
+
   if (cnt === null) {
     state.mintedCount = null;
     state.mintedRemaining = null;
     return null;
   }
-  
-  const capped = Math.min(MAX_QTY, cnt);
+
+  const capped = Math.min(MAX_QTY, Number(cnt || 0));
   state.mintedCount = capped;
   state.mintedRemaining = Math.max(0, MAX_QTY - capped);
-  
-  if (state.mintedRemaining === 0) {
-    emitQty(1);
-  }
-  
+
+  if (state.mintedRemaining === 0) emitQty(1);
+  emit();
   return capped;
 }
 
+// ---------- wallet helpers ----------
 function normalizeTier(t){
-  const key = String(t||"").trim();
+  const key = String(t || "").trim();
   return TIER_ALIASES[key] || null;
 }
 
@@ -217,10 +284,10 @@ async function toggleConnect(){
   const p = getProvider();
   if (!p) throw new Error("No Solana wallet found.");
   if (p.publicKey) await disconnectWallet();
-  else { await connectWallet(); }
+  else await connectWallet();
 }
 
-// -------- SDK dynamic import
+// ---------- SDK dynamic import ----------
 let SDK = null;
 async function loadSdk(){
   if (SDK) return SDK;
@@ -252,7 +319,14 @@ async function loadSdk(){
 let rpcIdx = 0;
 let umi = null;
 
-function currentRpc(){ return DEVNET_RPCS[rpcIdx] || DEVNET_RPCS[0]; }
+function rpcList(){
+  return RPC_BY_CLUSTER[state.cluster] || RPC_BY_CLUSTER.devnet;
+}
+
+function currentRpc(){
+  const list = rpcList();
+  return list[rpcIdx] || list[0];
+}
 
 async function rebuildUmi(){
   const sdk = await loadSdk();
@@ -262,10 +336,17 @@ async function rebuildUmi(){
   return umi;
 }
 
+function rotateRpc(){
+  const list = rpcList();
+  rpcIdx = (rpcIdx + 1) % list.length;
+  return rebuildUmi();
+}
+
 function attachWalletIdentity(){
   const p = getProvider();
   if (!p?.publicKey) throw new Error("Wallet not connected.");
   const sdk = SDK;
+
   const walletAdapter = {
     publicKey: p.publicKey,
     connected: true,
@@ -284,10 +365,10 @@ function attachWalletIdentity(){
       return out;
     }
   };
+
   umi.use(sdk.walletAdapterIdentity(walletAdapter));
 }
 
-// -------- value helpers
 function isRecentBlockhashFailed(err){
   const m = String(err?.message || err || "");
   return m.includes("failed to get recent blockhash")
@@ -302,11 +383,6 @@ function isBlockhashNotFound(err){
   return m.includes("blockhash not found") || m.includes("blockhashnotfound");
 }
 
-function rotateRpc(){
-  rpcIdx = (rpcIdx + 1) % DEVNET_RPCS.length;
-  return rebuildUmi();
-}
-
 function isForbidden(err){
   const m = String(err?.message || err || "").toLowerCase();
   return m.includes("access forbidden") || m.includes("forbidden") || m.includes("403");
@@ -314,150 +390,69 @@ function isForbidden(err){
 
 async function withFailover(fn){
   let last = null;
-  for (let attempt = 0; attempt < DEVNET_RPCS.length; attempt++){
+  const list = rpcList();
+  for (let attempt = 0; attempt < list.length; attempt++){
     try {
       if (!umi) await rebuildUmi();
       return await fn();
-    } catch(e){
+    } catch (e) {
       last = e;
-      if (isForbidden(e) || (e?.name === "TypeError" && String(e?.message||"").includes("fetch"))) {
-        if (rpcIdx < DEVNET_RPCS.length - 1) {
-          rpcIdx++;
-          await rebuildUmi();
-          setHint(`RPC switched → ${currentRpc()}`, "info");
-          await sleep(60);
-          continue;
-        }
+      if (isForbidden(e) || isBlockhashNotFound(e) || isRecentBlockhashFailed(e)) {
+        try { await rotateRpc(); } catch {}
+        continue;
       }
-      break;
+      throw e;
     }
   }
-  throw last;
+  throw last || new Error("RPC failover exhausted");
 }
 
-function toBigIntMaybe(v){
+// ---------- CM / Guard parsing helpers ----------
+function toNumberSafe(v){
   if (v == null) return null;
-  if (typeof v === "bigint") return v;
-  if (typeof v === "number" && Number.isFinite(v)) return BigInt(Math.trunc(v));
-  if (typeof v === "string") { try { return BigInt(v); } catch { return null; } }
-  if (typeof v === "object") {
-    const inner = v.basisPoints ?? v.lamports ?? v.amount ?? v.value ?? null;
-    if (inner != null) return toBigIntMaybe(inner);
-  }
+  try {
+    if (typeof v === "bigint") return Number(v);
+    if (typeof v === "number") return Number.isFinite(v) ? v : null;
+    if (typeof v === "string") {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    }
+    if (typeof v === "object") {
+      const maybe = v.basisPoints ?? v.value ?? v.amount ?? v.number ?? null;
+      if (maybe != null) return toNumberSafe(maybe);
+    }
+  } catch {}
   return null;
 }
 
-function toNumberSafe(v){
-  const bi = toBigIntMaybe(v);
-  if (bi == null) return null;
-  const max = BigInt(Number.MAX_SAFE_INTEGER);
-  const clipped = bi > max ? max : bi;
-  return Number(clipped);
-}
-
-function lamportsToSol(lamports){
-  const bi = toBigIntMaybe(lamports);
-  if (bi == null) return null;
-  const sol = Number(bi) / 1_000_000_000;
-  return Number.isFinite(sol) ? sol : null;
-}
-
-function mergeGuards(base, override){
-  return { ...(base||{}), ...(override||{}) };
-}
-
-function resolveGuardsByLabels(cg, labels){
-  if (!cg) return { guards: null, group: null };
-  const base = cg.guards || {};
-  const groups = cg.groups || [];
+function resolveGuardsByLabels(candyGuard, labels){
+  const groups = candyGuard?.groups || [];
   for (const label of labels){
-    const found = groups.find(g => g.label === label);
-    if (found) return { guards: mergeGuards(base, found.guards || {}), group: label };
+    const g = groups.find(x => x?.label === label);
+    if (g) return { group: label, guards: g.guards || null };
   }
-  return { guards: base, group: null };
+  return { group: null, guards: candyGuard?.guards || null };
 }
 
 function extractSolPaymentLamports(guards){
-  const sp = guards?.solPayment;
-  if (!sp) return null;
-
-  const kind = sp.__kind ?? sp.__option ?? null;
-  if (kind && String(kind).toLowerCase().includes("none")) return null;
-
-  const inner = sp.value ?? (Array.isArray(sp.fields) ? sp.fields[0] : null) ?? sp;
-
-  const candidate = inner?.amount ?? inner?.lamports ?? inner?.basisPoints ?? inner;
-  const bi = toBigIntMaybe(candidate);
-
-  if (bi == null) return null;
-  return bi;
+  const gp = guards?.solPayment;
+  if (!gp) return null;
+  const raw = gp.lamports ?? gp.amount ?? gp.value ?? gp.basisPoints ?? null;
+  const n = toNumberSafe(raw);
+  return (n == null) ? null : n;
 }
 
 function extractSolPaymentDestination(guards){
-  const sp = guards?.solPayment;
-  if (!sp) return null;
-
-  const kind = sp.__kind ?? sp.__option ?? null;
-  if (kind && String(kind).toLowerCase().includes("none")) return null;
-
-  const inner = sp.value ?? (Array.isArray(sp.fields) ? sp.fields[0] : null) ?? sp;
-
-  const d = inner?.destination ?? inner?.destinationAddress ?? inner?.destination?.publicKey ?? null;
-
-  if (!d) return null;
-  if (typeof d === "string") return d;
-  if (typeof d === "object"){
-    if (typeof d.toString === "function") return String(d);
-    if (d.bytes) return String(d);
-  }
-  return null;
+  const gp = guards?.solPayment;
+  if (!gp) return null;
+  return gp.destination ?? gp.treasury ?? gp.receiver ?? null;
 }
 
-// -------- state
-const state = {
-  cluster: CLUSTER,
-  rpc: currentRpc(),
-  tierRaw: null,
-  tierKey: null,
-  tierLabel: "—",
-  cmId: null,
-
-  guardPk: null,
-  guardGroup: null,
-
-  walletConnected: false,
-  wallet: null,
-  walletShort: null,
-
-  // supply (ВСЕГДА обновляется)
-  itemsAvailable: null,
-  itemsRedeemed: null,
-  itemsRemaining: null,
-
-  // pricing
-  priceSol: null,
-  solDestination: null,
-  isFree: false,
-
-  // flags
-  ready: false,
-  mintLimit: MAX_QTY,
-
-  // per-wallet mint counter
-  mintedCount: null,
-  mintedRemaining: null,
-
-  // ТОПОВАЯ ФИЧА: массив последних транзакций
-  recentTxSignatures: [], // Массив объектов {signature, explorerUrl, timestamp}
-
-  // ui
-  busy: false,
-  busyLabel: "",
-  hint: "Select a tier.",
-  hintKind: "info",
-};
-
-function getState(){ return JSON.parse(JSON.stringify(state)); }
+function lamportsToSol(l){
+  const n = Number(l);
+  if (!Number.isFinite(n)) return null;
+  return n / 1_000_000_000;
+}
 
 async function resolveCollectionUpdateAuthority(cm, collectionMint){
   const direct = cm?.collectionUpdateAuthority
@@ -484,13 +479,71 @@ async function resolveCollectionUpdateAuthority(cm, collectionMint){
   }
 }
 
-// -------- core
+// ---------- explorer links ----------
+function solscanTxUrl(sig){
+  if (!sig) return "";
+  const c = normalizeCluster(state.cluster);
+  if (c === "devnet") return `https://solscan.io/tx/${sig}?cluster=devnet`;
+  return `https://solscan.io/tx/${sig}`;
+}
+
+// ---------- state ----------
+const state = {
+  cluster: CLUSTER,
+  rpc: (RPC_BY_CLUSTER[CLUSTER] || DEVNET_RPCS)[0],
+
+  tierRaw: null,
+  tierKey: null,
+  tierLabel: "—",
+  cmId: null,
+
+  guardPk: null,
+  guardGroup: null,
+
+  walletConnected: false,
+  wallet: null,
+  walletShort: null,
+
+  // supply
+  itemsAvailable: null,
+  itemsRedeemed: null,
+  itemsRemaining: null,
+
+  // pricing
+  priceSol: null,
+  solDestination: null,
+  isFree: false,
+
+  // flags
+  ready: false,
+  mintLimit: MAX_QTY,
+
+  // per-wallet mint counter
+  mintedCount: null,
+  mintedRemaining: null,
+
+  // recent tx list
+  recentTxSignatures: [], // [{signature, explorerUrl, timestamp, shortSig}]
+
+  // ui
+  busy: false,
+  busyLabel: "",
+  hint: "Select a tier.",
+  hintKind: "info",
+};
+
+function getState(){ return JSON.parse(JSON.stringify(state)); }
+
+// ---------- core ----------
 async function setTier(tierRaw){
   const key = normalizeTier(tierRaw);
+
   state.tierRaw = tierRaw || null;
   state.tierKey = key;
   state.tierLabel = key ? TIER_LABEL[key] : "—";
-  state.cmId = key ? CM_BY_TIER[key] : null;
+
+  const cmMap = getCmMap(state.cluster);
+  state.cmId = key ? (cmMap?.[key] || null) : null;
 
   // reset derived
   state.guardPk = null;
@@ -499,20 +552,18 @@ async function setTier(tierRaw){
   state.itemsRedeemed = null;
   state.itemsRemaining = null;
   state.priceSol = null;
+  state.solDestination = null;
+  state.isFree = false;
   state.ready = false;
   state.mintedCount = null;
   state.mintedRemaining = null;
-  // НЕ сбрасываем recentTxSignatures при смене тира
 
-  // ВАЖНО: Сохраняем tier в localStorage ДАЖЕ при первом выборе
-  try { 
-    localStorage.setItem("tonfans:tier", tierRaw || ""); 
-  } catch {}
+  try { localStorage.setItem("tonfans:tier", tierRaw || ""); } catch {}
 
   emit();
 
   if (!state.cmId) {
-    setHint("Tier выбран, но CM ID не найден.", "error");
+    setHint("Tier selected, but CM id is missing for this cluster.", "error");
     return;
   }
 
@@ -541,6 +592,7 @@ async function refresh(){
 
     const available = toNumberSafe(cm.itemsAvailable);
     const redeemed  = toNumberSafe(cm.itemsRedeemed);
+
     let remaining = null;
     if (available != null && redeemed != null) remaining = Math.max(available - redeemed, 0);
 
@@ -565,7 +617,7 @@ async function refresh(){
       return;
     }
 
-    // labels candidates
+    // label candidates (raw, dashed, tierKey, default)
     const raw = String(state.tierRaw || "");
     const labels = [raw, raw.replaceAll("_","-"), state.tierKey, "default"].filter(Boolean);
     const resolved = resolveGuardsByLabels(cg, labels);
@@ -591,14 +643,13 @@ async function refresh(){
       setHint(`Ready (${grp}${d}, ${p}${sup}).`, "ok");
     }
 
-    // ВАЖНО: Всегда эмитим обновление supply (даже если mintedRemaining = null)
     emitSupplyUpdate({
       itemsAvailable: state.itemsAvailable,
       itemsRedeemed: state.itemsRedeemed,
-      itemsRemaining: state.itemsRemaining
+      itemsRemaining: state.itemsRemaining,
     });
 
-    // Update mint counter
+    // per-wallet mint counter
     await updateWalletMintCounter();
     emit();
   } catch (e) {
@@ -611,73 +662,81 @@ async function refresh(){
   }
 }
 
-// ТОПОВАЯ ФИЧА: добавляем транзакцию в историю
-function addRecentTransaction(signature){
+// --- recent tx list ---
+function addRecentTransaction(signature, mintPkStr){
   if (!signature) return;
-  
-  const explorerUrl = `https://solscan.io/tx/${signature}?cluster=devnet`;
+
+  const explorerUrl = solscanTxUrl(signature);
   const txRecord = {
     signature,
     explorerUrl,
     timestamp: Date.now(),
-    shortSig: signature.slice(0, 8) + "…" + signature.slice(-8)
+    shortSig: String(signature).slice(0, 8) + "…" + String(signature).slice(-8),
+    mint: mintPkStr || null,
   };
-  
-  // Добавляем в начало массива (новые сверху)
+
   state.recentTxSignatures.unshift(txRecord);
-  
-  // Ограничиваем до 10 последних
-  if (state.recentTxSignatures.length > 10) {
-    state.recentTxSignatures = state.recentTxSignatures.slice(0, 10);
-  }
-  
-  // Сохраняем в localStorage для persistence
-  try {
-    localStorage.setItem("tonfans:recentTxs", JSON.stringify(state.recentTxSignatures));
-  } catch {}
-  
+  if (state.recentTxSignatures.length > 10) state.recentTxSignatures = state.recentTxSignatures.slice(0, 10);
+
+  try { localStorage.setItem("tonfans:recentTxs", JSON.stringify(state.recentTxSignatures)); } catch {}
   emit();
 }
 
-async function mintNow(qty=1){
+function isMintLimitError(err){
+  const m = String(err?.message || err || "").toLowerCase();
+  return m.includes("mint limit") || m.includes("mintlimit") || m.includes("mintlimitreached") || m.includes("mint limit reached");
+}
+
+async function mintNow(qty = 1){
   if (!state.cmId) throw new Error("Select a tier first.");
   if (!state.walletConnected) throw new Error("Connect wallet first.");
   if (!state.ready) throw new Error(state.itemsRemaining === 0 ? "Sold out." : "Not ready.");
 
   const q = Math.max(1, Math.min(MAX_QTY, Number(qty || 1)));
 
-  // Pre-check mintLimit
+  // Pre-check mintLimit (CRITICAL: avoid sending tx that will trigger botTax)
   await updateWalletMintCounter();
 
-  // PRO-LEVEL UX: кнопка активна, но при remaining=0 только toast, без транзы
   if (state.mintedRemaining !== null && state.mintedRemaining <= 0) {
     const msg = "Mint limit reached (3 per wallet)";
     setHint(msg, "error");
-    emitToast(msg, "info"); // info, а не error, чтобы не пугать
+    emitToast(msg, "info");
     emitQty(1);
     emit();
-    return; // НИКАКОЙ транзакции, НИКАКОГО botTax
+    return; // NO TX
   }
 
-  // Check if we need to adjust quantity
+  // adjust quantity if needed
   if (state.mintedRemaining !== null) {
     const remaining = Number(state.mintedRemaining);
-
     if (q > remaining) {
       const msg = `Only ${remaining}/3 remaining — adjusting quantity to ${remaining}.`;
       setHint(msg, "info");
       emitToast(msg, "info");
-      
-      try {
-        await _executeMint(remaining);
-      } catch (err) {
-        // Error handled in _executeMint
-      }
+      if (remaining <= 0) return;
+      await _executeMint(remaining);
       return;
     }
   }
 
   await _executeMint(q);
+}
+
+async function verifyMintMetadataBestEffort(mintPk){
+  try {
+    if (!mintPk) return false;
+    await loadSdk();
+    if (!umi) await rebuildUmi();
+
+    const sdk = SDK;
+    if (!sdk.findMetadataPda || !sdk.fetchMetadata) return false;
+
+    const mdPda = sdk.findMetadataPda(umi, { mint: mintPk });
+    const md = await withFailover(async () => await sdk.fetchMetadata(umi, mdPda));
+    return !!md;
+  } catch {
+    return false;
+  }
 }
 
 async function _executeMint(qty){
@@ -697,17 +756,15 @@ async function _executeMint(qty){
 
     const raw = String(state.tierRaw || "");
     const labels = [raw, raw.replaceAll("_","-"), state.tierKey, "default"].filter(Boolean);
-
-    let group = null;
     const groups = cg.groups || [];
-    group = labels.find(l => groups.some(g => g.label === l)) || null;
+    const group = labels.find(l => groups.some(g => g.label === l)) || null;
 
     const resolved = resolveGuardsByLabels(cg, labels);
     const guards = resolved.guards;
 
     const mintArgs = {};
     if (guards?.solPayment && state.solDestination) {
-      mintArgs.solPayment = { destination: SDK.publicKey(String(state.solDestination)) };
+      mintArgs.solPayment = { destination: sdk.publicKey(String(state.solDestination)) };
     }
     if (guards?.mintLimit) mintArgs.mintLimit = { id: MINT_LIMIT_ID };
 
@@ -732,18 +789,30 @@ async function _executeMint(qty){
 
     if (!collectionMint || !collectionUpdateAuthority) {
       throw new Error(
-        "CM missing collectionMint/collectionUpdateAuthority. " +
-        "Fix: redeploy with a collection or set/verify collection via sugar."
+        "CM missing collectionMint/collectionUpdateAuthority. Fix: redeploy with collection or set/verify collection via sugar."
       );
     }
 
-    const cua = (typeof collectionUpdateAuthority === 'string') ? SDK.publicKey(String(collectionUpdateAuthority)) : collectionUpdateAuthority;
-    const cMint = (typeof collectionMint === 'string') ? SDK.publicKey(String(collectionMint)) : collectionMint;
+    const cua = (typeof collectionUpdateAuthority === "string") ? sdk.publicKey(String(collectionUpdateAuthority)) : collectionUpdateAuthority;
+    const cMint = (typeof collectionMint === "string") ? sdk.publicKey(String(collectionMint)) : collectionMint;
 
     const signatures = [];
 
-    for (let i=0;i<qty;i++){
+    for (let i = 0; i < qty; i++){
+      // Extra guard: pre-check before each mint (protect from race)
+      await updateWalletMintCounter();
+      if (state.mintedRemaining !== null && state.mintedRemaining <= 0) {
+        const msg = "Mint limit reached (3 per wallet)";
+        setHint(msg, "error");
+        emitToast(msg, "info");
+        emitQty(1);
+        emit();
+        break;
+      }
+
       const nftMint = sdk.generateSigner(umi);
+      const mintPk = nftMint.publicKey;
+
       const ix = sdk.mintV2(umi, {
         candyMachine: cm.publicKey || cmPk,
         candyGuard: cm.mintAuthority,
@@ -763,6 +832,16 @@ async function _executeMint(qty){
       try {
         signature = await builder.sendAndConfirm(umi);
       } catch (e) {
+        // If we hit mintLimit unexpectedly, DO NOT retry (avoids botTax loops)
+        if (isMintLimitError(e)) {
+          const msg = "Mint limit reached (3 per wallet)";
+          setHint(msg, "error");
+          emitToast(msg, "info");
+          emitQty(1);
+          emit();
+          break;
+        }
+
         if (isBlockhashNotFound(e) || isRecentBlockhashFailed(e)) {
           setHint("RPC/blockhash hiccup — retrying…", "info");
           try { await rotateRpc(); } catch {}
@@ -774,25 +853,34 @@ async function _executeMint(qty){
           throw e;
         }
       }
-      
+
       if (signature) {
         signatures.push(signature);
-        addRecentTransaction(signature); // ТОПОВАЯ ФИЧА: сохраняем каждую транзакцию
+        addRecentTransaction(signature, mintPk?.toString?.() || null);
+
+        // Truth check (best-effort): metadata exists
+        try {
+          await sleep(250);
+          const ok = await verifyMintMetadataBestEffort(mintPk);
+          if (!ok) console.warn("[TONFANS] metadata not found yet (ok, may be delayed)");
+        } catch {}
       }
-      
+
       await sleep(150);
     }
 
-    // After successful mint
     emitQty(1);
-    setHint("Mint complete.", "ok");
-    
-    if (signatures.length === 1) {
-      emitToast(`Mint successful! Tx: ${signatures[0].slice(0, 8)}…`, "ok");
-    } else {
-      emitToast(`Minted ${signatures.length} NFTs successfully!`, "ok");
+
+    if (signatures.length === 0) {
+      // could be stopped by mintLimit
+      await refresh();
+      return;
     }
-    
+
+    setHint("Mint complete.", "ok");
+    if (signatures.length === 1) emitToast(`Mint successful! Tx: ${String(signatures[0]).slice(0, 8)}…`, "ok");
+    else emitToast(`Minted ${signatures.length} NFTs successfully!`, "ok");
+
     await refresh();
   } catch (e) {
     setHint(e?.message || String(e), "error");
@@ -803,88 +891,81 @@ async function _executeMint(qty){
   }
 }
 
-// Copy transaction signature
+// Copy tx signature
 function copyTxSignature(signature){
-  if (!signature && state.recentTxSignatures.length > 0) {
-    signature = state.recentTxSignatures[0].signature;
-  }
-  
+  if (!signature && state.recentTxSignatures.length > 0) signature = state.recentTxSignatures[0].signature;
   if (!signature) return;
-  
+
   navigator.clipboard.writeText(signature)
-    .then(() => {
-      emitToast("Transaction signature copied!", "ok");
-    })
+    .then(() => { emitToast("Transaction signature copied!", "ok"); })
     .catch(() => {
-      const textArea = document.createElement('textarea');
+      const textArea = document.createElement("textarea");
       textArea.value = signature;
       document.body.appendChild(textArea);
       textArea.select();
       try {
-        document.execCommand('copy');
+        document.execCommand("copy");
         emitToast("Transaction signature copied!", "ok");
-      } catch (err) {
+      } catch {
         emitToast("Failed to copy signature", "error");
       }
       document.body.removeChild(textArea);
     });
 }
 
-// init + expose
+// ---------- expose API ----------
 window.TONFANS = window.TONFANS || {};
-window.TONFANS.mint = { 
-  setTier, 
-  toggleConnect, 
-  refresh, 
-  mintNow, 
+window.TONFANS.mint = {
+  setTier,
+  toggleConnect,
+  refresh,
+  mintNow,
   getState,
   copyTxSignature,
-  addRecentTransaction
+  addRecentTransaction,
 };
 
 (function init(){
-  // Загружаем историю транзакций из localStorage
+  // load recent txs
   try {
     const savedTxs = localStorage.getItem("tonfans:recentTxs");
-    if (savedTxs) {
-      state.recentTxSignatures = JSON.parse(savedTxs);
-    }
+    if (savedTxs) state.recentTxSignatures = JSON.parse(savedTxs);
   } catch {}
-  
+
   const p = getProvider();
   if (p?.on) {
     try {
-      p.on("connect", () => { 
-        state.walletConnected = !!p.publicKey; 
-        state.wallet = p.publicKey?.toString?.()||null; 
-        state.walletShort = state.wallet?shortPk(state.wallet):null; 
-        emit(); 
-        refresh().catch(()=>{}); 
+      p.on("connect", () => {
+        state.walletConnected = !!p.publicKey;
+        state.wallet = p.publicKey?.toString?.() || null;
+        state.walletShort = state.wallet ? shortPk(state.wallet) : null;
+        emit();
+        refresh().catch(()=>{});
       });
-      p.on("disconnect", () => { 
-        state.walletConnected = false; 
-        state.wallet=null; 
-        state.walletShort=null; 
-        emit(); 
+      p.on("disconnect", () => {
+        state.walletConnected = false;
+        state.wallet = null;
+        state.walletShort = null;
+        emit();
       });
-      p.on("accountChanged", (pk) => { 
-        state.walletConnected=!!pk; 
-        state.wallet=pk?.toString?.()||null; 
-        state.walletShort=state.wallet?shortPk(state.wallet):null; 
-        emit(); 
-        refresh().catch(()=>{}); 
+      p.on("accountChanged", (pk) => {
+        state.walletConnected = !!pk;
+        state.wallet = pk?.toString?.() || null;
+        state.walletShort = state.wallet ? shortPk(state.wallet) : null;
+        emit();
+        refresh().catch(()=>{});
       });
     } catch {}
   }
 
-  // Check if wallet is already connected
+  // already connected
   if (p?.publicKey) {
     state.walletConnected = true;
     state.wallet = p.publicKey.toString();
     state.walletShort = shortPk(state.wallet);
-    emit();
   }
 
+  // saved tier
   let saved = null;
   try { saved = localStorage.getItem("tonfans:tier"); } catch {}
   if (saved) setTier(saved).catch(()=>{});
