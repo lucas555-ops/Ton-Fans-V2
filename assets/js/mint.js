@@ -287,6 +287,8 @@ async function updateWalletMintCounter(){
     // Ошибка при получении
     state.mintedCount = null;
     state.mintedRemaining = null;
+    state.mintLimitVerified = false;
+    // arm bypass is handled in mintNow (user-initiated)
     console.log('[TONFANS] ❌ Не удалось получить счетчик');
     return null;
   }
@@ -296,6 +298,8 @@ async function updateWalletMintCounter(){
   const capped = Math.min(lim, cnt);
   state.mintedCount = capped;
   state.mintedRemaining = Math.max(0, lim - capped);
+  state.mintLimitVerified = true;
+  state.limitCheckBypassUntil = 0;
 
   console.log('[TONFANS] 📊 Обновленные счетчики:', {
     minted: state.mintedCount,
@@ -704,6 +708,10 @@ const state = {
   mintedCount: null,
   mintedRemaining: null,
 
+  // mint-limit verification UX
+  mintLimitVerified: true,
+  limitCheckBypassUntil: 0,
+
   // ТОПОВАЯ ФИЧА: массив последних транзакций
   recentTxSignatures: [], // Массив объектов {signature, explorerUrl, timestamp}
 
@@ -941,6 +949,7 @@ async function mintNow(qty=1){
     console.log('[TONFANS] ' + msg);
     setHint(msg, 'error');
     emitToast(msg, 'error');
+    state.limitCheckBypassUntil = 0;
     emitQty(1);
     emit();
     return; // НИКАКОЙ ТРАНЗАКЦИИ = НИКАКОЙ botTax
@@ -949,10 +958,26 @@ async function mintNow(qty=1){
   // Сценарий 2: мы не знаем (null) — НЕ ТРАВМИРУЕМ ЮЗЕРА И НЕ ТРАТИМ FEE
   // Если не удалось проверить счётчик (RPC/SDK issue), НЕ отправляем транзакцию.
   if (state.mintedRemaining === null) {
-    const msg = "Can't verify mint limit right now. Please refresh and try again.";
-    console.log("[TONFANS] ⚠️ "+msg);
-    setHint(msg, "error");
-    emitToast(msg, "error");
+    const now = Date.now();
+    const armed = state.limitCheckBypassUntil && now < state.limitCheckBypassUntil;
+
+    if (armed) {
+      const msg = "Proceeding without mint-limit verification (RPC/SDK issue). If your wallet already reached the limit, you may pay only the network fee.";
+      console.log('[TONFANS] ⚠️ '+msg);
+      setHint(msg, 'info');
+      emitToast(msg, 'info');
+      // continue to execute mint
+      await _executeMint(q);
+      return;
+    }
+
+    // Arm a short bypass window so user can explicitly proceed if they want.
+    state.limitCheckBypassUntil = now + 15000; // 15s
+    state.mintLimitVerified = false;
+    const msg = "Can't verify mint limit right now. Tap Mint again to proceed anyway (may incur network fee).";
+    console.log('[TONFANS] ⚠️ '+msg);
+    setHint(msg, 'error');
+    emitToast(msg, 'error');
     emit();
     return;
   }
@@ -967,6 +992,7 @@ async function mintNow(qty=1){
     return;
   }
 
+  state.limitCheckBypassUntil = 0;
   console.log('[TONFANS] ✅ Лимит проверен, запускаю минт...');
   await _executeMint(q);
 }
