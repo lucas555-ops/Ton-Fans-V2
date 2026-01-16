@@ -187,6 +187,30 @@ function emitSupplyUpdate(supplyData){
   } catch {}
 }
 
+// Preflight: ensure a recipient system account exists (devnet wallets that never received SOL do not exist).
+// Prevents scary simulation error: "Attempt to debit an account but found no record of a prior credit".
+async function ensureSystemAccountExists(pubkeyStr, label){
+  if (!pubkeyStr) return true;
+  try {
+    await loadSdk();
+    if (!umi) await rebuildUmi();
+    const pk = SDK.publicKey(String(pubkeyStr));
+    const acc = await umi.rpc.getAccount(pk).catch(()=>null);
+    if (!acc || !acc.exists) {
+      const where = label ? label + ' ' : '';
+      const msg = `Payment ${where}wallet is not initialized on ${CLUSTER}. Please fund ${shortPk(String(pubkeyStr))} with a tiny amount of SOL (e.g. 0.001 on devnet) or update Candy Guard destination.`;
+      setHint(msg, 'error');
+      emitToast(msg, 'error');
+      emit();
+      throw new Error(msg);
+    }
+    return true;
+  } catch (e) {
+    // rethrow so mint flow stops before wallet popup
+    throw e;
+  }
+}
+
 // --- Обновлено: Candy Guard mint counter ---
 let CGSDK = null;
 async function loadCgSdk(){
@@ -1047,6 +1071,11 @@ async function _executeMint(qty){
     const resolved = resolveGuardsByLabels(cg, labels);
     const guards = resolved.guards;
 
+    // Preflight: if solPayment is configured, destination must exist (especially on devnet).
+    if (guards?.solPayment && state.solDestination) {
+      await ensureSystemAccountExists(state.solDestination, 'destination');
+    }
+
     const mintArgs = {};
     if (guards?.solPayment && state.solDestination) {
       mintArgs.solPayment = { destination: SDK.publicKey(String(state.solDestination)) };
@@ -1182,8 +1211,27 @@ async function _executeMint(qty){
       emitToast('Tx sent. If NFT not in wallet, it may be botTax / failed mint.', 'info');
     }
   } catch (e) {
-    setHint(e?.message || String(e), "error");
-    emitToast(e?.message || "Mint failed", "error");
+    const raw = String(e?.message || e || '');
+
+    // Best-effort logs (helps debugging in console, without scaring users)
+    try {
+      if (e && typeof e.getLogs === 'function') {
+        const logs = await e.getLogs().catch(()=>null);
+        if (logs) console.log('[TONFANS] tx logs:', logs);
+      }
+    } catch {}
+
+    // Friendly mapping for common Solana simulation error when recipient account doesn't exist (fresh devnet pubkey).
+    if (raw.includes('no record of a prior credit')) {
+      const dest = state.solDestination ? shortPk(String(state.solDestination)) : 'destination';
+      const msg = `Transaction simulation failed: payment ${dest} wallet is not initialized on ${CLUSTER}. Fund it with a tiny SOL amount (e.g. 0.001 on devnet), then retry.`;
+      setHint(msg, 'error');
+      emitToast(msg, 'error');
+      throw e;
+    }
+
+    setHint(raw, 'error');
+    emitToast(raw || 'Mint failed', 'error');
     throw e;
   } finally {
     setBusy(false, "");
