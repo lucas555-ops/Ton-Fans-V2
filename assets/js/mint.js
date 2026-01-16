@@ -1002,26 +1002,23 @@ async function mintNow(qty=1){
     return; // НИКАКОЙ ТРАНЗАКЦИИ = НИКАКОЙ botTax
   }
 
-  // Сценарий 2: мы не знаем (null) — НЕ ТРАВМИРУЕМ ЮЗЕРА И НЕ ТРАТИМ FEE
-  // Если не удалось проверить счётчик (RPC/SDK issue), не делаем "двойной клик".
-  // Показываем confirm ДО открытия кошелька: Cancel → ничего, OK → продолжаем.
-  if (state.mintedRemaining === null) {
-    state.mintLimitVerified = false;
-    const warn = "Can't verify mint limit right now (RPC/SDK issue). Continue anyway? If your wallet already reached the limit, you may pay only the network fee.";
-    console.log('[TONFANS] ⚠️ '+warn);
-    setHint(warn, 'error');
-    emitToast(warn, 'error');
-    emit();
+  // Сценарий 2: мы не знаем (null) — позволяем продолжить (UI уже показал Payment Preview).
+// В этом режиме кошелёк может показать только network fee, а не оплату, т.к. SOL transfer идёт как inner-instruction внутри Candy Guard.
+if (state.mintedRemaining === null) {
+  state.mintLimitVerified = false;
+  const warn = "Can't verify mint limit right now (RPC/SDK issue). Proceeding — if this wallet already reached the limit, you may pay only the network fee.";
+  console.log('[TONFANS] ⚠️ ' + warn);
+  // Не делаем confirm здесь: UI должен показывать Payment Preview каждый раз.
+  setHint(warn, 'info');
+  emitToast(warn, 'warning');
+  emit();
 
-    const ok = confirmProceedWithoutLimitCheck();
-    if (!ok) return;
-
-    const msg = "Proceeding without mint-limit verification…";
-    setHint(msg, 'info');
-    emitToast(msg, 'info');
-    await _executeMint(q);
-    return;
-  }
+  const msg = "Proceeding without mint-limit verification…";
+  setHint(msg, 'info');
+  emitToast(msg, 'info');
+  await _executeMint(q);
+  return;
+}
 
   // Сценарий 3: Мы знаем количество, но запрашиваем больше, чем осталось
   if (state.mintedRemaining !== null && q > state.mintedRemaining) {
