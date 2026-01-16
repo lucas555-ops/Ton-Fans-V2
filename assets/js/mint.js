@@ -946,7 +946,16 @@ async function mintNow(qty=1){
     return; // НИКАКОЙ ТРАНЗАКЦИИ = НИКАКОЙ botTax
   }
 
-  // Сценарий 2: мы не знаем (null) — q уже capped, просто продолжаем
+  // Сценарий 2: мы не знаем (null) — НЕ ТРАВМИРУЕМ ЮЗЕРА И НЕ ТРАТИМ FEE
+  // Если не удалось проверить счётчик (RPC/SDK issue), НЕ отправляем транзакцию.
+  if (state.mintedRemaining === null) {
+    const msg = "Can't verify mint limit right now. Please refresh and try again.";
+    console.log("[TONFANS] ⚠️ "+msg);
+    setHint(msg, "error");
+    emitToast(msg, "error");
+    emit();
+    return;
+  }
 
   // Сценарий 3: Мы знаем количество, но запрашиваем больше, чем осталось
   if (state.mintedRemaining !== null && q > state.mintedRemaining) {
