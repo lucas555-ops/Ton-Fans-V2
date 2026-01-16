@@ -560,39 +560,53 @@
       els.qtyPlus.dataset.remaining = String(remaining);
     }
 
-    // PRO-LEVEL UX: кнопка Mint активна даже при remaining=0
+    // Apple-grade UX: when limit reached → button clearly says so (still clickable for info)
     if (els.mintBtn){
       const ok = canMint(s);
       const limitReached = remaining === 0;
-      
-      // Кнопка всегда enabled если базовые условия выполнены
+
+      // Keep clickable so we can show a toast (disabled buttons don't fire click)
       els.mintBtn.disabled = !ok;
-      
-      // Стилизация для лимита
+      els.mintBtn.setAttribute("aria-disabled", (!ok || limitReached) ? "true" : "false");
+      els.mintBtn.dataset.mode = limitReached ? "limit" : "mint";
+
       if (limitReached) {
-        els.mintBtn.style.opacity = "0.7";
-        els.mintBtn.style.cursor = "pointer";
+        // Looks disabled, behaves like an info button
+        els.mintBtn.style.opacity = "0.62";
+        els.mintBtn.style.cursor = ok ? "help" : "not-allowed";
         els.mintBtn.title = "Mint limit reached (click for info)";
       } else {
         els.mintBtn.style.opacity = ok ? "1" : ".55";
         els.mintBtn.style.cursor = ok ? "pointer" : "not-allowed";
         els.mintBtn.title = "";
       }
-      
-      els.mintBtn.textContent = s.busy ? (s.busyLabel || "Working…") : "Mint now";
+
+      els.mintBtn.textContent = s.busy
+        ? (s.busyLabel || "Working…")
+        : (limitReached ? "Limit reached" : "Mint now");
     }
 
-    // Sticky action button
+    // Sticky action button (Apple-grade)
     if (els.stickyActionBtn){
       if (!s.walletConnected) {
         els.stickyActionBtn.textContent = "Connect";
         els.stickyActionBtn.disabled = false;
+        els.stickyActionBtn.style.opacity = "1";
         els.stickyActionBtn.style.cursor = "pointer";
+        els.stickyActionBtn.dataset.mode = "connect";
       } else {
-        els.stickyActionBtn.textContent = "Mint";
         const okSticky = canMint(s);
+        const limitReached = remaining === 0;
+
+        // Keep clickable for toast when limit reached
         els.stickyActionBtn.disabled = !okSticky;
-        els.stickyActionBtn.style.cursor = okSticky ? "pointer" : "not-allowed";
+        els.stickyActionBtn.setAttribute("aria-disabled", (!okSticky || limitReached) ? "true" : "false");
+        els.stickyActionBtn.dataset.mode = limitReached ? "limit" : "mint";
+
+        els.stickyActionBtn.textContent = limitReached ? "Limit" : "Mint";
+        els.stickyActionBtn.style.opacity = limitReached ? "0.62" : (okSticky ? "1" : ".55");
+        els.stickyActionBtn.style.cursor = okSticky ? (limitReached ? "help" : "pointer") : "not-allowed";
+        els.stickyActionBtn.title = limitReached ? "Mint limit reached" : "";
       }
     }
 
@@ -741,7 +755,9 @@
       const ss = window.__TONFANS_STATE__ || {};
       const remaining = ss.mintedRemaining;
       if (remaining === 0) {
-        toast("Mint limit reached (3 per wallet). No transaction will be sent.", "info");
+        const limRaw = (ss.mintLimit != null) ? Number(ss.mintLimit) : 3;
+        const lim = Number.isFinite(limRaw) && limRaw > 0 ? Math.floor(limRaw) : 3;
+        toast(`Mint limit reached (${lim} per wallet). No transaction will be sent.`, "info");
         return;
       }
 
@@ -773,7 +789,9 @@
         // PRO-LEVEL UX: проверка лимита для sticky кнопки
         const remaining = ss.mintedRemaining;
         if (remaining === 0) {
-          toast("Mint limit reached (3 per wallet). No transaction will be sent.", "info");
+          const limRaw = (ss.mintLimit != null) ? Number(ss.mintLimit) : 3;
+          const lim = Number.isFinite(limRaw) && limRaw > 0 ? Math.floor(limRaw) : 3;
+          toast(`Mint limit reached (${lim} per wallet). No transaction will be sent.`, "info");
           return;
         }
 
