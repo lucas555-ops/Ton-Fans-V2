@@ -175,7 +175,7 @@
         mintedLineEl = document.createElement("div");
         mintedLineEl.id = "mintedLine";
         mintedLineEl.className = "mt-2 text-xs muted2";
-        mintedLineEl.textContent = "Minted: —/3";
+        mintedLineEl.textContent = 'Minted: —/—';
         els.mintBtn.insertAdjacentElement("afterend", mintedLineEl);
       }
     }
@@ -467,8 +467,8 @@
     const minted = s.mintedCount !== null ? Number(s.mintedCount) : null;
     const remaining = s.mintedRemaining !== null ? Number(s.mintedRemaining) : null;
 
-    if (mintedLineEl) mintedLineEl.textContent = `Minted: ${(minted == null ? "—" : minted)}/3`;
-    if (qtyRemainingEl) qtyRemainingEl.textContent = `Remaining: ${(remaining == null ? "—" : remaining)}/3`;
+    if (mintedLineEl) {const lim = (s && s.mintLimit != null) ? Number(s.mintLimit) : 3; mintedLineEl.textContent = `Minted: ${(minted == null ? '—' : minted)}/${lim}`;}
+    if (qtyRemainingEl) {const lim = (s && s.mintLimit != null) ? Number(s.mintLimit) : 3; qtyRemainingEl.textContent = `Remaining: ${(remaining == null ? '—' : remaining)}/${lim}`;}
 
     syncTotals();
 
@@ -607,6 +607,25 @@
 
   function mintApi(){ return window.TONFANS?.mint; }
 
+  async function ensureConnected(api){
+    const s0 = window.__TONFANS_STATE__ || {};
+    if (s0.walletConnected) return true;
+    try {
+      await api?.toggleConnect?.();
+    } catch (e) {
+      toast(e?.message || "Wallet connect cancelled", "error");
+      return false;
+    }
+    const t0 = Date.now();
+    while (Date.now() - t0 < 12000){
+      const s = window.__TONFANS_STATE__ || {};
+      if (s.walletConnected) return true;
+      await new Promise(r => setTimeout(r, 120));
+    }
+    toast("Wallet not connected. Open wallet and approve.", "error");
+    return false;
+  }
+
   async function onTier(card){
     const tierRaw = card.getAttribute("data-tier");
     if (!tierRaw) return;
@@ -654,7 +673,8 @@
         if (rem === 0) {
           toast("❌ Mint limit reached (3 per wallet)", "error");
         } else if (rem != null && rem < MAX_QTY) {
-          toast(`📊 Only ${rem}/3 remaining.`, "info");
+          const lim = (st && st.mintLimit != null) ? Number(st.mintLimit) : 3;
+          toast(`📊 Only ${rem}/${lim} remaining.`, "info");
         } else if (!els.qtyPlus.dataset.canMintMore || els.qtyPlus.dataset.canMintMore === "false") {
           toast("⚠️ Cannot increase quantity", "error");
         }
@@ -674,13 +694,25 @@
     }, { capture: true });
 
     // connect/disconnect
-    if (els.connectBtn) els.connectBtn.addEventListener("click", (e) => {
+    if (els.connectBtn) els.connectBtn.addEventListener("click", async (e) => {
       e.preventDefault();
-      mintApi()?.toggleConnect?.().catch(()=>{});
+      const api = mintApi();
+      if (!api) return;
+      try {
+        await api.toggleConnect?.();
+      } catch (err) {
+        toast(err?.message || "Wallet connect cancelled", "error");
+      }
     });
-    if (els.disconnectBtn) els.disconnectBtn.addEventListener("click", (e) => {
+    if (els.disconnectBtn) els.disconnectBtn.addEventListener("click", async (e) => {
       e.preventDefault();
-      mintApi()?.toggleConnect?.().catch(()=>{});
+      const api = mintApi();
+      if (!api) return;
+      try {
+        await api.toggleConnect?.();
+      } catch (err) {
+        toast(err?.message || "Wallet disconnect failed", "error");
+      }
     });
 
     // PRO-LEVEL UX: обработка клика на Mint
@@ -688,20 +720,28 @@
       e.preventDefault();
       e.stopPropagation();
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-      
+
       const s = window.__TONFANS_STATE__ || {};
-      const remaining = s.mintedRemaining;
-      
-      // Если лимит исчерпан, показываем toast и НЕ вызываем mintNow
+      const api = mintApi();
+      if (!api) return;
+
+      // If wallet not connected: connect + continue mint in one flow (mobile-friendly)
+      if (!s.walletConnected) {
+        const ok = await ensureConnected(api);
+        if (!ok) return;
+      }
+
+      const ss = window.__TONFANS_STATE__ || {};
+      const remaining = ss.mintedRemaining;
       if (remaining === 0) {
         toast("Mint limit reached (3 per wallet). No transaction will be sent.", "info");
         return;
       }
-      
+
       try {
-        await mintApi()?.mintNow?.(getQty());
+        await api.mintNow?.(getQty());
       } catch (err) {
-        // Error handled by mint.js toast
+        // errors are surfaced via mint.js toast/hint
       }
     }, { capture: true });
 
@@ -716,18 +756,20 @@
       if (!api) return;
 
       try {
+        // If wallet not connected: connect + continue mint in one flow (mobile-friendly)
         if (!s.walletConnected) {
-          await api.toggleConnect?.();
-          return;
+          const ok = await ensureConnected(api);
+          if (!ok) return;
         }
-        
+
+        const ss = window.__TONFANS_STATE__ || {};
         // PRO-LEVEL UX: проверка лимита для sticky кнопки
-        const remaining = s.mintedRemaining;
+        const remaining = ss.mintedRemaining;
         if (remaining === 0) {
           toast("Mint limit reached (3 per wallet). No transaction will be sent.", "info");
           return;
         }
-        
+
         await api.mintNow?.(getQty());
       } catch (err) {
         // Error handled by mint.js toast
