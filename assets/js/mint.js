@@ -571,6 +571,10 @@ const state = {
   // ТОПОВАЯ ФИЧА: массив последних транзакций
   recentTxSignatures: [], // Массив объектов {signature, explorerUrl, timestamp}
 
+  // session-only: last verified mint (do NOT persist)
+  lastMint: null,
+
+
   // ui
   busy: false,
   busyLabel: "",
@@ -810,6 +814,11 @@ async function _executeMint(qty){
   // Truth verification: capture counter before mint
   const beforeCnt = await fetchMintedCountOnChain();
 
+
+  // Reset session success marker
+  state.lastMint = null;
+  emit();
+
   setBusy(true, "Minting…");
   setHint(`Minting x${qty}…`, "info");
 
@@ -925,6 +934,24 @@ async function _executeMint(qty){
     const delta = (b != null && a != null) ? Math.max(0, a - b) : null;
     const attempted = signatures.length;
 
+    // Persist last verified mint only for THIS session (UI uses this to show Mint Successful)
+    try {
+      const ok = (delta != null) ? (delta > 0) : false;
+      state.lastMint = {
+        ok,
+        attempted,
+        verified: (delta != null) ? delta : null,
+        partial: (delta != null && attempted > 0) ? (delta < attempted) : false,
+        signature: signatures[0] || null,
+        signatures: signatures.slice(0),
+        tierLabel: state.tierLabel || null,
+        cluster: state.cluster || null,
+        ts: Date.now(),
+      };
+      emit();
+    } catch {}
+
+
     if (delta != null) {
       if (delta >= attempted && attempted > 0) {
         setHint('Mint complete.', 'ok');
@@ -1000,9 +1027,40 @@ window.TONFANS.mint = {
   try {
     const savedTxs = localStorage.getItem("tonfans:recentTxs");
     if (savedTxs) {
-      state.recentTxSignatures = JSON.parse(savedTxs);
+      const raw = JSON.parse(savedTxs);
+      if (Array.isArray(raw)) {
+        const norm = [];
+        for (const x of raw) {
+          if (!x) continue;
+          if (typeof x === 'string') {
+            const sig = x;
+            if (sig.length < 12) continue;
+            norm.push({
+              signature: sig,
+              shortSig: sig.slice(0, 8) + '…' + sig.slice(-8),
+              explorerUrl: (state.cluster === 'devnet') ? `https://solscan.io/tx/${sig}?cluster=devnet` : `https://solscan.io/tx/${sig}`,
+              timestamp: Date.now(),
+            });
+            continue;
+          }
+          if (typeof x === 'object') {
+            const sig = x.signature || x.sig || x.tx || null;
+            if (typeof sig !== 'string' || sig.length < 12) continue;
+            norm.push({
+              signature: sig,
+              shortSig: x.shortSig || (sig.slice(0, 8) + '…' + sig.slice(-8)),
+              explorerUrl: x.explorerUrl || ((state.cluster === 'devnet') ? `https://solscan.io/tx/${sig}?cluster=devnet` : `https://solscan.io/tx/${sig}`),
+              timestamp: Number(x.timestamp) || Date.now(),
+            });
+          }
+        }
+        state.recentTxSignatures = norm.slice(0, 10);
+      }
     }
   } catch {}
+
+  // Always reset session marker
+  state.lastMint = null;
   
   const p = getProvider();
   if (p?.on) {
