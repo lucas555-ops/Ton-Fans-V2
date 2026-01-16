@@ -391,10 +391,46 @@
     const last = s.lastMint || null;
     const ok = !!(last && last.ok && typeof last.signature === "string" && last.signature.length > 12);
 
-    // показываем блок ТОЛЬКО после реального успешного минта в этой сессии
-    setHidden(els.afterMintSection, !ok);
+    // Engineering elegance (Woz): allow dismissing the success panel without breaking verification.
+    // Dismissal is session-only and is tied to the specific mint signature.
+    const dismissKey = "tonfans:afterMintDismissed";
+    const dismissedSig = (typeof sessionStorage !== "undefined") ? sessionStorage.getItem(dismissKey) : null;
+    const isDismissed = ok && dismissedSig === last.signature;
 
-    if (!ok) return;
+    // Inject a small × button once (no HTML edits required)
+    if (ok) {
+      const header = els.afterMintSection.querySelector('.text-sm.font-medium');
+      if (header && !header.querySelector('[data-action="dismiss-after-mint"]')) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'Dismiss');
+        btn.setAttribute('title', 'Dismiss');
+        btn.dataset.action = 'dismiss-after-mint';
+        btn.textContent = '×';
+        // minimal Jobs-like styling
+        btn.style.marginLeft = 'auto';
+        btn.style.width = '28px';
+        btn.style.height = '28px';
+        btn.style.borderRadius = '10px';
+        btn.style.border = '1px solid rgba(255,255,255,0.14)';
+        btn.style.background = 'rgba(0,0,0,0.35)';
+        btn.style.color = 'rgba(255,255,255,0.8)';
+        btn.style.fontSize = '18px';
+        btn.style.lineHeight = '26px';
+        btn.style.cursor = 'pointer';
+        btn.style.flexShrink = '0';
+        btn.addEventListener('click', () => {
+          try { sessionStorage.setItem(dismissKey, String(last.signature)); } catch (_) {}
+          setHidden(els.afterMintSection, true);
+        });
+        header.appendChild(btn);
+      }
+    }
+
+    // показываем блок ТОЛЬКО после реального успешного минта в этой сессии
+    setHidden(els.afterMintSection, !ok || isDismissed);
+
+    if (!ok || isDismissed) return;
 
     // Share on X (only when ok)
     if (els.shareOnX){
