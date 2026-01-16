@@ -311,22 +311,81 @@ function normalizeTier(t){
   return TIER_ALIASES[key] || null;
 }
 
-function getProvider(){ return window.solana || null; }
+function getProvider(){
+  // Prefer injected provider (Phantom/Solflare). Some environments expose window.phantom.solana.
+  return (window.solana) || (window.phantom && window.phantom.solana) || (window.solflare) || null;
+}
 
-async function connectWallet(){
-  const p = getProvider();
-  if (!p) throw new Error("No Solana wallet found. Install Phantom.");
-  if (!p.publicKey) await p.connect();
-  state.walletConnected = !!p.publicKey;
-  state.wallet = p.publicKey ? p.publicKey.toString() : null;
+async function waitForProvider(timeoutMs = 1800){
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs){
+    const p = getProvider();
+    if (p) return p;
+    await sleep(60);
+  }
+  return getProvider();
+}
+
+async function tryAutoConnect(){
+  // Silent reconnect (no extra approvals) when wallet already trusted
+  const p = await waitForProvider();
+  if (!p || typeof p.connect !== "function") return false;
+  if (p.publicKey) return true;
+  try {
+    await p.connect({ onlyIfTrusted: true });
+  } catch {
+    // ignore (wallet not yet trusted)
+  }
+  return !!p.publicKey;
+}
+
+function syncWalletState(p){
+  state.walletConnected = !!p?.publicKey;
+  state.wallet = p?.publicKey ? p.publicKey.toString() : null;
   state.walletShort = state.wallet ? shortPk(state.wallet) : null;
-  emit();
-  await refresh();
+}
+
+async function connectWallet(opts = { silent: false }){
+  const p = await waitForProvider();
+  if (!p) {
+    emitToast("No Solana wallet found. Install Phantom or Solflare.", "error");
+    throw new Error("No Solana wallet found. Install Phantom.");
+  }
+
+  // If already connected - just sync
+  if (p.publicKey) {
+    syncWalletState(p);
+    emit();
+    refresh().catch(()=>{});
+    return;
+  }
+
+  // Silent connect (no prompt)
+  if (opts?.silent) {
+    await tryAutoConnect();
+    syncWalletState(p);
+    emit();
+    if (state.walletConnected) refresh().catch(()=>{});
+    return;
+  }
+
+  try {
+    // User-initiated connect (may show approval)
+    await p.connect();
+    syncWalletState(p);
+    emit();
+    refresh().catch(()=>{});
+  } catch (e) {
+    emitToast(e?.message || "Wallet connect cancelled", "error");
+    throw e;
+  }
 }
 
 async function disconnectWallet(){
   const p = getProvider();
-  if (p?.disconnect) { try { await p.disconnect(); } catch {} }
+  try {
+    if (p?.disconnect) await p.disconnect();
+  } catch {}
   state.walletConnected = false;
   state.wallet = null;
   state.walletShort = null;
@@ -334,10 +393,16 @@ async function disconnectWallet(){
 }
 
 async function toggleConnect(){
-  const p = getProvider();
-  if (!p) throw new Error("No Solana wallet found.");
-  if (p.publicKey) await disconnectWallet();
-  else { await connectWallet(); }
+  const p = await waitForProvider();
+  if (!p) {
+    emitToast("No Solana wallet found. Install Phantom or Solflare.", "error");
+    throw new Error("No Solana wallet found.");
+  }
+  if (p.publicKey) {
+    await disconnectWallet();
+  } else {
+    await connectWallet({ silent: false });
+  }
 }
 
 // -------- SDK dynamic import
@@ -1061,40 +1126,27 @@ window.TONFANS.mint = {
 
   // Always reset session marker
   state.lastMint = null;
-  
-  const p = getProvider();
-  if (p?.on) {
-    try {
-      p.on("connect", () => { 
-        state.walletConnected = !!p.publicKey; 
-        state.wallet = p.publicKey?.toString?.()||null; 
-        state.walletShort = state.wallet?shortPk(state.wallet):null; 
-        emit(); 
-        refresh().catch(()=>{}); 
-      });
-      p.on("disconnect", () => { 
-        state.walletConnected = false; 
-        state.wallet=null; 
-        state.walletShort=null; 
-        emit(); 
-      });
-      p.on("accountChanged", (pk) => { 
-        state.walletConnected=!!pk; 
-        state.wallet=pk?.toString?.()||null; 
-        state.walletShort=state.wallet?shortPk(state.wallet):null; 
-        emit(); 
-        refresh().catch(()=>{}); 
-      });
-    } catch {}
-  }
+  // Wallet bootstrap: attach listeners, attempt silent reconnect (onlyIfTrusted)
+  (async () => {
+    const p = await waitForProvider();
+    if (p?.on) {
+      try {
+        p.on("connect", () => { syncWalletState(p); emit(); refresh().catch(()=>{}); });
+        p.on("disconnect", () => { state.walletConnected=false; state.wallet=null; state.walletShort=null; emit(); });
+        p.on("accountChanged", (pk) => {
+          // pk may be null when user disconnects
+          if (!pk) { state.walletConnected=false; state.wallet=null; state.walletShort=null; emit(); return; }
+          state.walletConnected=true; state.wallet=pk.toString(); state.walletShort=shortPk(state.wallet); emit(); refresh().catch(()=>{});
+        });
+      } catch {}
+    }
 
-  // Check if wallet is already connected
-  if (p?.publicKey) {
-    state.walletConnected = true;
-    state.wallet = p.publicKey.toString();
-    state.walletShort = shortPk(state.wallet);
+    // silent reconnect if already trusted (no extra approvals)
+    await tryAutoConnect();
+    syncWalletState(p);
     emit();
-  }
+    if (state.walletConnected) refresh().catch(()=>{});
+  })().catch(()=>{});
 
   let saved = null;
   try { saved = localStorage.getItem("tonfans:tier"); } catch {}
